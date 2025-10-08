@@ -10,6 +10,7 @@
 
 `tk-ai-extension` brings Claude AI capabilities directly into your Jupyter notebooks through:
 
+- **Chat Sidebar UI** - Modern chat interface with Thinkube branding (NEW!)
 - **`%%tk` Magic Commands** - Execute AI prompts in notebook cells
 - **MCP Server** - Embedded Model Context Protocol server for tool discovery
 - **Claude Code CLI Integration** - Use Claude in JupyterLab terminal with notebook access
@@ -23,6 +24,18 @@
 - **Zero Configuration** - Auto-loads when JupyterLab starts
 
 ## Quick Start
+
+### Chat Sidebar (NEW!)
+
+1. **Open JupyterLab**
+2. **Click "Open tk-ai Chat" in the Launcher**
+3. **Start chatting with Claude!**
+
+The chat interface will appear in the right sidebar with:
+- Real-time connection status
+- Message history with timestamps
+- Thinkube-branded design
+- Dark theme support
 
 ### In a Notebook
 
@@ -384,16 +397,18 @@ print(os.environ.get('ANTHROPIC_API_KEY', 'Not set'))
 - [x] Phase 3: Magic Commands
 - [x] Phase 4: Additional Tools & HTTP Handlers
 - [x] Phase 5: Testing & Documentation
-- [ ] Phase 6: Packaging & Deployment
-- [ ] Phase 7: Chat Sidebar UI (Future)
+- [x] Phase 6: Packaging & Deployment
+- [x] Phase 7: Chat Sidebar UI ✨ NEW!
 
 ### Upcoming Features
 
+- **Full Claude Chat Integration** - Complete backend integration for chat UI
+- **Real-time Streaming** - Stream Claude's responses as they generate
+- **Conversation History** - Persist chat conversations across sessions
+- **Tool Usage Visualization** - Show which tools Claude is using in real-time
 - **Full Cell Execution** - Complete implementation of execute_cell tool
 - **Cell Insertion/Modification** - Tools to insert and edit cells
 - **Kernel Management** - Start, stop, restart kernels
-- **Chat Sidebar UI** - jupyter-ai style interface with Thinkube branding
-- **Real-time Streaming** - Stream Claude's responses as they generate
 
 ## Contributing
 
