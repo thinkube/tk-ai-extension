@@ -7,6 +7,8 @@ AI assistant extension for tk-ai lab (Thinkube JupyterHub)
 ## Requirements
 
 - JupyterLab >= 4.0.0
+- Python >= 3.9
+- Anthropic API key
 
 ## Install
 
@@ -15,6 +17,54 @@ To install the extension, execute:
 ```bash
 pip install tk_ai_extension
 ```
+
+## Usage
+
+### 1. Set API Key
+
+```bash
+export ANTHROPIC_API_KEY="your-api-key-here"
+```
+
+### 2. Load Extension in Notebooks
+
+```python
+%load_ext tk_ai_extension
+```
+
+### 3. Use %%tk Magic
+
+```python
+%%tk
+List all notebooks in the current directory
+```
+
+### 4. Claude Code CLI Integration (Optional)
+
+Create `~/.mcp.json`:
+
+```json
+{
+  "mcpServers": {
+    "tk-ai-lab": {
+      "type": "http",
+      "url": "http://localhost:8888/api/tk-ai/mcp/",
+      "description": "tk-ai lab notebook tools"
+    }
+  }
+}
+```
+
+Then use Claude Code CLI in JupyterLab terminal:
+```bash
+claude
+```
+
+## Available Tools
+
+- **list_notebooks**: List all .ipynb files in the current directory
+
+More tools coming soon!
 
 ## Uninstall
 

@@ -16,15 +16,44 @@ class TKAIExtension(ExtensionApp):
         """Initialize extension settings."""
         self.log.info("tk-ai-extension: Initializing")
 
-        # TODO: Initialize MCP server with Claude Agent SDK
-        # TODO: Register MCP tools
-        # TODO: Setup HTTP handlers
+        try:
+            # Get Jupyter managers from serverapp
+            contents_manager = self.serverapp.contents_manager
+            kernel_manager = self.serverapp.kernel_manager
+            kernel_spec_manager = self.serverapp.kernel_spec_manager
+
+            # Set managers for tool execution
+            from .agent.tools_registry import set_jupyter_managers
+            set_jupyter_managers(
+                contents_manager,
+                kernel_manager,
+                kernel_spec_manager
+            )
+
+            # Register MCP tools
+            self._register_tools()
+
+            self.log.info("tk-ai-extension: MCP tools registered successfully")
+
+        except Exception as e:
+            self.log.error(f"tk-ai-extension: Failed to initialize: {e}")
+            raise
+
+    def _register_tools(self):
+        """Register all MCP tools with Claude Agent SDK."""
+        from .agent.tools_registry import register_tool
+        from .mcp.tools.list_notebooks import ListNotebooksTool
+
+        # Register tools
+        register_tool(ListNotebooksTool())
+
+        # TODO: Add more tools as implemented
 
     def initialize_handlers(self):
         """Initialize HTTP handlers."""
-        self.handlers.extend([
-            # TODO: Add MCP endpoint handlers
-        ])
+        # TODO: Add MCP endpoint handlers for Claude Code CLI
+        # For now, tools work via query() in magic commands
+        pass
 
 
 # Entry point for jupyter_server
