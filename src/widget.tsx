@@ -20,7 +20,6 @@ export class ChatWidget extends ReactWidget {
     super();
     this.id = 'tk-ai-chat';
     this.title.label = 'tk-ai Chat';
-    this.title.icon = 'jp-RobotIcon'; // Use JupyterLab's robot icon
     this.title.closable = true;
     this.addClass('tk-chat-widget');
 

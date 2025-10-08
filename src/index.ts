@@ -46,13 +46,11 @@ const plugin: JupyterFrontEndPlugin<void> = {
     app.commands.addCommand(CommandIDs.openChat, {
       label: 'Open tk-ai Chat',
       caption: 'Open the tk-ai chat interface',
-      icon: 'jp-RobotIcon',
       execute: () => {
         if (!widget || widget.isDisposed) {
           widget = new ChatWidget();
           widget.id = 'tk-ai-chat';
           widget.title.label = 'tk-ai Chat';
-          widget.title.icon = 'jp-RobotIcon';
           widget.title.closable = true;
         }
 
