@@ -17,11 +17,12 @@ class TKMagics(Magics):
         self._check_api_key()
 
     def _check_api_key(self):
-        """Check if ANTHROPIC_API_KEY is set."""
-        if not os.environ.get('ANTHROPIC_API_KEY'):
+        """Check if CLAUDE_CODE_OAUTH_TOKEN or ANTHROPIC_API_KEY is set."""
+        if not os.environ.get('CLAUDE_CODE_OAUTH_TOKEN') and not os.environ.get('ANTHROPIC_API_KEY'):
             self.shell.system(
-                'echo "⚠️  Warning: ANTHROPIC_API_KEY not set. '
-                'Set it with: export ANTHROPIC_API_KEY=your-key"'
+                'echo "⚠️  Warning: Claude API credentials not found. '
+                'Add CLAUDE_CODE_OAUTH_TOKEN (for Pro/Max accounts) or ANTHROPIC_API_KEY (for API access) '
+                'in thinkube-control Secrets page, then click \'Export to Notebooks\' to make them available here."'
             )
 
     @cell_magic
@@ -60,7 +61,8 @@ class TKMagics(Magics):
         except Exception as e:
             display(Markdown(
                 f"❌ **Error**: {str(e)}\n\n"
-                f"Make sure ANTHROPIC_API_KEY is set."
+                f"**Setup required**: Add `CLAUDE_CODE_OAUTH_TOKEN` (for Pro/Max accounts) or `ANTHROPIC_API_KEY` (for API access) "
+                f"in thinkube-control Secrets page, then click 'Export to Notebooks' to make credentials available."
             ))
 
 

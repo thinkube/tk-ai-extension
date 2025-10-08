@@ -45,7 +45,7 @@ dev = [
     "ruff>=0.1.0",
 ]
 
-[project.entry-points."jupyter_serverproxy_servers"]
+[project.entry-points."jupyter_server.extension_points"]
 tk_ai_extension = "tk_ai_extension.extension"
 
 [tool.hatch.version]
