@@ -29,6 +29,25 @@ dependencies = [
 ]
 dynamic = ["version", "description", "authors", "urls", "keywords"]
 
+[project.optional-dependencies]
+test = [
+    "pytest>=7.0.0",
+    "pytest-asyncio>=0.21.0",
+    "pytest-tornasync>=0.6.0",
+    "pytest-cov>=4.0.0",
+]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-asyncio>=0.21.0",
+    "pytest-tornasync>=0.6.0",
+    "pytest-cov>=4.0.0",
+    "black>=23.0.0",
+    "ruff>=0.1.0",
+]
+
+[project.entry-points."jupyter_serverproxy_servers"]
+tk_ai_extension = "tk_ai_extension.extension"
+
 [tool.hatch.version]
 source = "nodejs"
 

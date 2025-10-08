@@ -1,47 +1,157 @@
-# tk_ai_extension
+# tk-ai-extension
+
+**AI-powered JupyterLab extension for tk-ai lab (Thinkube's intelligent notebook laboratory)**
 
 [![Github Actions Status](https://github.com/thinkube/tk-ai-extension/workflows/Build/badge.svg)](https://github.com/thinkube/tk-ai-extension/actions/workflows/build.yml)
+[![License](https://img.shields.io/badge/License-BSD_3--Clause-blue.svg)](LICENSE)
+[![Python](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
 
-AI assistant extension for tk-ai lab (Thinkube JupyterHub)
+## Overview
 
-## Requirements
+`tk-ai-extension` brings Claude AI capabilities directly into your Jupyter notebooks through:
+
+- **`%%tk` Magic Commands** - Execute AI prompts in notebook cells
+- **MCP Server** - Embedded Model Context Protocol server for tool discovery
+- **Claude Code CLI Integration** - Use Claude in JupyterLab terminal with notebook access
+- **Autonomous Notebook Operations** - Claude can read, analyze, and execute notebook cells
+
+### What Makes This Special
+
+- **Localhost-only** - No external routing, ingress, or authentication complexity
+- **Pod-internal** - Everything runs within your JupyterHub pod
+- **Unified Tool Access** - Same MCP tools work from magic commands and CLI
+- **Zero Configuration** - Auto-loads when JupyterLab starts
+
+## Quick Start
+
+### In a Notebook
+
+```python
+%%tk
+List all notebooks in the current directory
+and tell me which one has the most cells
+```
+
+```python
+%%tk
+Read cell 5 from analysis.ipynb and explain what it does
+```
+
+```python
+%%tk
+Find all code cells that import pandas and summarize their purpose
+```
+
+### In Terminal (Claude Code CLI)
+
+```bash
+$ claude
+> List all running kernels
+> Read the first cell from notebook.ipynb
+> Execute cell 3 and show me the output
+```
+
+## Features
+
+### MCP Tools Available
+
+**Notebook Operations:**
+- `list_notebooks` - List all .ipynb files in a directory
+
+**Cell Operations:**
+- `list_cells` - List all cells in a notebook with previews
+- `read_cell` - Read specific cell by index with outputs
+- `execute_cell` - Execute cell (placeholder - coming soon)
+
+**Kernel Operations:**
+- `list_kernels` - List running kernels and available kernel specs
+
+### Architecture
+
+```
+JupyterHub Pod (tk-ai lab)
+│
+├── JupyterLab Server (port 8888)
+│   │
+│   ├── tk-ai-extension (installed)
+│   │   ├── MCP Server (http://localhost:8888/api/tk-ai/mcp/)
+│   │   │   └── Tools: list_notebooks, read_cell, list_cells, etc.
+│   │   │
+│   │   ├── Claude Agent SDK
+│   │   │   └── Uses MCP tools
+│   │   │
+│   │   └── Magic Commands (%%tk)
+│   │       └── Calls Claude Agent SDK
+│   │
+│   └── JupyterLab UI (browser)
+│       ├── Terminal with Claude Code CLI
+│       │   └── ~/.mcp.json → http://localhost:8888/api/tk-ai/mcp/
+│       │
+│       └── Notebooks
+│           └── %%tk magic available
+│
+└── All self-contained, no external routing needed
+```
+
+## Installation
+
+### Requirements
 
 - JupyterLab >= 4.0.0
 - Python >= 3.9
 - Anthropic API key
 
-## Install
-
-To install the extension, execute:
+### For Production (JupyterHub)
 
 ```bash
-pip install tk_ai_extension
+pip install tk-ai-extension
 ```
 
-## Usage
+Or add to your JupyterHub Docker image:
 
-### 1. Set API Key
+```dockerfile
+RUN pip install tk-ai-extension
+```
+
+### For Development
 
 ```bash
-export ANTHROPIC_API_KEY="your-api-key-here"
+# Clone repository
+git clone https://github.com/thinkube/tk-ai-extension.git
+cd tk-ai-extension
+
+# Create virtual environment
+python3 -m venv venv
+source venv/bin/activate
+
+# Install in development mode
+pip install -e ".[dev]"
+
+# Run tests
+pytest tests/
 ```
 
-### 2. Load Extension in Notebooks
+## Configuration
+
+### API Key
+
+Set your Anthropic API key as an environment variable:
+
+```bash
+export ANTHROPIC_API_KEY=sk-ant-...
+```
+
+For JupyterHub, configure in `jupyterhub_config.py`:
 
 ```python
-%load_ext tk_ai_extension
+c.Spawner.environment = {
+    'ANTHROPIC_API_KEY': os.environ.get('ANTHROPIC_API_KEY'),
+}
 ```
 
-### 3. Use %%tk Magic
+### Claude Code CLI Setup
 
-```python
-%%tk
-List all notebooks in the current directory
-```
-
-### 4. Claude Code CLI Integration (Optional)
-
-Create `~/.mcp.json`:
+The extension auto-generates `~/.mcp.json` when JupyterLab starts:
 
 ```json
 {
@@ -55,93 +165,264 @@ Create `~/.mcp.json`:
 }
 ```
 
-Then use Claude Code CLI in JupyterLab terminal:
-```bash
-claude
-```
+## API Endpoints
 
-## Available Tools
-
-- **list_notebooks**: List all .ipynb files in the current directory
-
-More tools coming soon!
-
-## Uninstall
-
-To remove the extension, execute:
+### Health Check
 
 ```bash
-pip uninstall tk_ai_extension
+GET http://localhost:8888/api/tk-ai/mcp/health
 ```
+
+**Response:**
+```json
+{
+  "status": "ok",
+  "service": "tk-ai-extension",
+  "version": "0.1.0"
+}
+```
+
+### List Available Tools
+
+```bash
+GET http://localhost:8888/api/tk-ai/mcp/tools/list
+```
+
+**Response:**
+```json
+{
+  "tools": [
+    {
+      "name": "list_notebooks",
+      "description": "List all Jupyter notebooks in a directory",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string",
+            "description": "Directory path (default: current directory)"
+          }
+        }
+      }
+    }
+  ]
+}
+```
+
+### Execute Tool
+
+```bash
+POST http://localhost:8888/api/tk-ai/mcp/tools/call
+Content-Type: application/json
+
+{
+  "tool": "list_cells",
+  "arguments": {
+    "notebook": "analysis.ipynb"
+  }
+}
+```
+
+**Response:**
+```json
+{
+  "content": [
+    {
+      "type": "text",
+      "text": "Cells in 'analysis.ipynb':\n  0. code      [#1]  | import pandas as pd\n  1. markdown        | # Data Analysis\n  2. code      [#2]  | df = pd.read_csv('data.csv')"
+    }
+  ]
+}
+```
+
+## Usage Examples
+
+### Example 1: Notebook Analysis
+
+```python
+%%tk
+Analyze all notebooks in the current directory.
+For each notebook:
+1. Count the cells
+2. List any cells that import libraries
+3. Identify the main purpose
+
+Summarize your findings.
+```
+
+### Example 2: Code Explanation
+
+```python
+%%tk
+Read cell 10 from machine_learning.ipynb and explain:
+- What libraries are being used
+- What the code is trying to accomplish
+- Any potential improvements
+```
+
+### Example 3: Multi-Notebook Search
+
+```python
+%%tk
+Search through all notebooks in ./experiments/
+and find which ones contain matplotlib visualizations.
+List them with the cell numbers that have plots.
+```
+
+## Development
+
+### Project Structure
+
+```
+tk-ai-extension/
+├── tk_ai_extension/           # Python package
+│   ├── mcp/                   # MCP server implementation
+│   │   └── tools/             # MCP tools
+│   │       ├── list_notebooks.py
+│   │       ├── list_cells.py
+│   │       ├── read_cell.py
+│   │       ├── execute_cell.py
+│   │       └── list_kernels.py
+│   │
+│   ├── agent/                 # Claude Agent SDK integration
+│   │   └── tools_registry.py  # Tool registration
+│   │
+│   ├── magics/                # IPython magic commands
+│   │   └── tk_magic.py        # %%tk implementation
+│   │
+│   ├── handlers.py            # HTTP handlers
+│   └── extension.py           # JupyterLab extension entry point
+│
+├── tests/                     # Test suite
+│   ├── test_tools.py          # Unit tests for tools
+│   └── test_handlers.py       # Integration tests
+│
+├── examples/                  # Example notebooks
+├── pyproject.toml             # Package configuration
+├── pytest.ini                 # Test configuration
+└── README.md                  # This file
+```
+
+### Running Tests
+
+```bash
+# Run all tests
+pytest
+
+# Run with coverage
+pytest --cov=tk_ai_extension --cov-report=html
+
+# Run specific test file
+pytest tests/test_tools.py
+
+# Run specific test
+pytest tests/test_tools.py::TestListNotebooksTool::test_list_notebooks_basic
+```
+
+### Code Style
+
+```bash
+# Format code
+black tk_ai_extension/ tests/
+
+# Lint code
+ruff check tk_ai_extension/ tests/
+```
+
+## Troubleshooting
+
+### Extension Not Loading
+
+Check if extension is enabled:
+
+```bash
+jupyter server extension list
+```
+
+You should see:
+```
+tk_ai_extension enabled
+    - Validating tk_ai_extension...
+      tk_ai_extension 0.1.0 OK
+```
+
+### Magic Command Not Available
+
+Try manually loading the extension:
+
+```python
+%load_ext tk_ai_extension
+```
+
+### MCP Server Not Responding
+
+Check the MCP server health:
+
+```bash
+curl http://localhost:8888/api/tk-ai/mcp/health
+```
+
+Check JupyterLab logs:
+
+```bash
+journalctl -u jupyterhub -f
+```
+
+### API Key Issues
+
+Verify your API key is set:
+
+```python
+import os
+print(os.environ.get('ANTHROPIC_API_KEY', 'Not set'))
+```
+
+## Roadmap
+
+- [x] Phase 1: MCP Foundation
+- [x] Phase 2: Claude Agent SDK Integration
+- [x] Phase 3: Magic Commands
+- [x] Phase 4: Additional Tools & HTTP Handlers
+- [x] Phase 5: Testing & Documentation
+- [ ] Phase 6: Packaging & Deployment
+- [ ] Phase 7: Chat Sidebar UI (Future)
+
+### Upcoming Features
+
+- **Full Cell Execution** - Complete implementation of execute_cell tool
+- **Cell Insertion/Modification** - Tools to insert and edit cells
+- **Kernel Management** - Start, stop, restart kernels
+- **Chat Sidebar UI** - jupyter-ai style interface with Thinkube branding
+- **Real-time Streaming** - Stream Claude's responses as they generate
 
 ## Contributing
 
-### Development install
+We welcome contributions! Please:
 
-Note: You will need NodeJS to build the extension package.
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Add tests
+5. Submit a pull request
 
-The `jlpm` command is JupyterLab's pinned version of
-[yarn](https://yarnpkg.com/) that is installed with JupyterLab. You may use
-`yarn` or `npm` in lieu of `jlpm` below.
+## License
 
-```bash
-# Clone the repo to your local environment
-# Change directory to the tk_ai_extension directory
-# Install package in development mode
-pip install -e "."
-# Link your development version of the extension with JupyterLab
-jupyter labextension develop . --overwrite
-# Rebuild extension Typescript source after making changes
-jlpm build
-```
+BSD-3-Clause License - See [LICENSE](LICENSE) for details.
 
-You can watch the source directory and run JupyterLab at the same time in different terminals to watch for changes in the extension's source and automatically rebuild the extension.
+This project incorporates code from:
+- [jupyter-mcp-server](https://github.com/datalayer/jupyter-mcp-server) (BSD-3-Clause)
+- Inspiration from [jupyter-ai](https://github.com/jupyterlab/jupyter-ai) UX patterns
 
-```bash
-# Watch the source directory in one terminal, automatically rebuilding when needed
-jlpm watch
-# Run JupyterLab in another terminal
-jupyter lab
-```
+## Authors
 
-With the watch command running, every saved change will immediately be built locally and available in your running JupyterLab. Refresh JupyterLab to load the change in your browser (you may need to wait several seconds for the extension to be rebuilt).
+- Alejandro Martínez Corriá and the Thinkube contributors
 
-By default, the `jlpm build` command generates the source maps for this extension to make it easier to debug using the browser dev tools. To also generate source maps for the JupyterLab core extensions, you can run the following command:
+## Support
 
-```bash
-jupyter lab build --minimize=False
-```
+- **Documentation**: [Thinkube Docs](https://thinkube.com/docs)
+- **Issues**: [GitHub Issues](https://github.com/thinkube/tk-ai-extension/issues)
+- **Discussions**: [GitHub Discussions](https://github.com/thinkube/tk-ai-extension/discussions)
 
-### Development uninstall
+---
 
-```bash
-pip uninstall tk_ai_extension
-```
-
-In development mode, you will also need to remove the symlink created by `jupyter labextension develop`
-command. To find its location, you can run `jupyter labextension list` to figure out where the `labextensions`
-folder is located. Then you can remove the symlink named `tk-ai-extension` within that folder.
-
-### Testing the extension
-
-#### Frontend tests
-
-This extension is using [Jest](https://jestjs.io/) for JavaScript code testing.
-
-To execute them, execute:
-
-```sh
-jlpm
-jlpm test
-```
-
-#### Integration tests
-
-This extension uses [Playwright](https://playwright.dev/docs/intro) for the integration tests (aka user level tests).
-More precisely, the JupyterLab helper [Galata](https://github.com/jupyterlab/jupyterlab/tree/master/galata) is used to handle testing the extension in JupyterLab.
-
-More information are provided within the [ui-tests](./ui-tests/README.md) README.
-
-### Packaging the extension
-
-See [RELEASE](RELEASE.md)
+**🤖 Built with [Claude Code](https://claude.com/claude-code) for the Thinkube platform**
