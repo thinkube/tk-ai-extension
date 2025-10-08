@@ -1,3 +1,8 @@
+# Copyright 2025 Alejandro Martínez Corriá and the Thinkube contributors
+# SPDX-License-Identifier: BSD-3-Clause
+
+"""tk-ai-extension: AI assistant for tk-ai lab (Thinkube JupyterHub)."""
+
 try:
     from ._version import __version__
 except ImportError:
@@ -14,3 +19,9 @@ def _jupyter_labextension_paths():
         "src": "labextension",
         "dest": "tk-ai-extension"
     }]
+
+
+def _jupyter_server_extension_points():
+    """Entry point for jupyter_server."""
+    from .extension import _jupyter_server_extension_points
+    return _jupyter_server_extension_points()
