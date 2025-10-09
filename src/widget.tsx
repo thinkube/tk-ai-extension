@@ -6,7 +6,7 @@
  */
 
 import { ReactWidget } from '@jupyterlab/apputils';
-import { ILabShell } from '@jupyterlab/application';
+import { JupyterFrontEnd } from '@jupyterlab/application';
 import React from 'react';
 import { MCPClient } from './api';
 import { ChatPanel } from './components/ChatPanel';
@@ -16,9 +16,9 @@ import { ChatPanel } from './components/ChatPanel';
  */
 export class ChatWidget extends ReactWidget {
   private client: MCPClient;
-  private labShell: ILabShell | null;
+  private labShell: JupyterFrontEnd.IShell | null;
 
-  constructor(labShell: ILabShell | null = null) {
+  constructor(labShell: JupyterFrontEnd.IShell | null = null) {
     super();
     this.id = 'tk-ai-chat';
     this.title.label = 'tk-ai Chat';
