@@ -53,6 +53,7 @@ class TKAIExtension(ExtensionApp):
         from .mcp.tools.read_cell import ReadCellTool
         from .mcp.tools.execute_cell import ExecuteCellTool
         from .mcp.tools.list_kernels import ListKernelsTool
+        from .mcp.tools.create_notebook import CreateNotebookTool
 
         # Register all tools
         register_tool(ListNotebooksTool())
@@ -60,6 +61,7 @@ class TKAIExtension(ExtensionApp):
         register_tool(ReadCellTool())
         register_tool(ExecuteCellTool())
         register_tool(ListKernelsTool())
+        register_tool(CreateNotebookTool())
 
     def initialize_handlers(self):
         """Initialize HTTP handlers."""
