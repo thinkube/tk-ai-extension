@@ -236,13 +236,16 @@ class MCPChatHandler(JupyterHandler):
             user_notebooks = Path.home() / 'thinkube' / 'notebooks'
 
             # Build enhanced system prompt with notebook context
-            system_prompt = self._build_system_prompt(user_notebooks, notebook_path)
+            system_prompt_text = self._build_system_prompt(user_notebooks, notebook_path)
 
             options = ClaudeAgentOptions(
                 mcp_servers={"jupyter": jupyter_mcp},
                 allowed_tools=allowed_tools,
                 cwd=str(user_notebooks),  # Set working directory to notebooks
-                system_prompt=system_prompt,  # Enhanced context
+                # SDK v0.1.0+ requires explicit system_prompt configuration
+                system_prompt=system_prompt_text,
+                # Enable loading CLAUDE.md and other settings from project directory
+                setting_sources=["project"],  # Load .claude/settings.json and CLAUDE.md from cwd
                 env=os.environ.copy()  # Pass all environment variables including auth token
             )
 
