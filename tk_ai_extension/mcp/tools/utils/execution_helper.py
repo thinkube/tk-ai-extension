@@ -48,11 +48,15 @@ async def execute_code_with_timeout(
         outputs = []
         start_time = asyncio.get_event_loop().time()
         execution_done = False
+        empty_reads = 0  # Track consecutive empty reads
+        max_empty_reads = 20  # Exit after 2 seconds of no messages (20 * 0.1s)
 
         while not execution_done:
             # Check timeout
-            if asyncio.get_event_loop().time() - start_time > timeout_seconds:
+            elapsed = asyncio.get_event_loop().time() - start_time
+            if elapsed > timeout_seconds:
                 # Interrupt kernel
+                logger.warning(f"Execution timeout after {elapsed}s")
                 try:
                     await kernel_manager.interrupt_kernel(kernel_id)
                 except Exception as e:
@@ -60,17 +64,28 @@ async def execute_code_with_timeout(
                 client.stop_channels()
                 return [f"[TIMEOUT ERROR: Execution exceeded {timeout_seconds} seconds]"]
 
+            # Check if we've been getting no messages for too long
+            if empty_reads >= max_empty_reads:
+                logger.info(f"No messages for {max_empty_reads * 0.1}s, assuming execution complete")
+                execution_done = True
+                break
+
             # Get messages (non-blocking)
             try:
-                # Run blocking call in thread pool
+                # Run blocking call in thread pool with short timeout
                 msg = await asyncio.get_event_loop().run_in_executor(
                     None,
                     lambda: client.get_iopub_msg(timeout=0.5)
                 )
 
+                # Reset empty reads counter - we got a message
+                empty_reads = 0
+
                 if msg['parent_header'].get('msg_id') == msg_id:
                     msg_type = msg['header']['msg_type']
                     content = msg['content']
+
+                    logger.debug(f"Got message type: {msg_type}")
 
                     if msg_type == 'stream':
                         outputs.append(content.get('text', ''))
@@ -87,15 +102,18 @@ async def execute_code_with_timeout(
                         outputs.append(f"[ERROR: {ename}: {evalue}\n{traceback}]")
                     elif msg_type == 'status':
                         if content.get('execution_state') == 'idle':
+                            logger.info("Kernel returned to idle state")
                             execution_done = True
 
-            except Exception as e:
-                # No message available or timeout, wait a bit
+            except Exception:
+                # No message available, increment empty reads counter
+                empty_reads += 1
                 await asyncio.sleep(0.1)
 
         # Stop client channels
         client.stop_channels()
 
+        logger.info(f"Execution completed with {len(outputs)} outputs")
         return outputs if outputs else ["[No output]"]
 
     except Exception as e:
