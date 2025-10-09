@@ -171,9 +171,17 @@ class MCPChatHandler(JupyterHandler):
             self.log.info(f"MCP server created with {len(allowed_tools)} tools")
 
             # Configure Claude options with MCP server
+            # Set working directory to user's home for Claude CLI context
+            import os
+            from pathlib import Path
+
+            user_home = Path.home()
+
             options = ClaudeAgentOptions(
                 mcp_servers={"jupyter": jupyter_mcp},
-                allowed_tools=allowed_tools
+                allowed_tools=allowed_tools,
+                cwd=str(user_home),  # Set working directory
+                env=os.environ.copy()  # Pass all environment variables including auth token
             )
 
             # Execute query with Claude SDK client
