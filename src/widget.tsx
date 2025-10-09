@@ -30,7 +30,7 @@ export class ChatWidget extends ReactWidget {
 
     // Listen to shell changes to update notebook path
     if (this.labShell) {
-      this.labShell.currentChanged.connect(() => {
+      this.labShell.currentChanged?.connect(() => {
         this.update();
       });
     }
