@@ -1,32 +1,31 @@
 # Copyright 2025 Alejandro Martínez Corriá and the Thinkube contributors
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Manages persistent Claude SDK clients per user for conversation continuity."""
+"""Manages persistent Claude SDK client for conversation continuity."""
 
 import logging
-from typing import Dict, Optional
-from pathlib import Path
+from typing import Optional
 
 logger = logging.getLogger(__name__)
 
 
 class ClaudeClientManager:
-    """Manages persistent Claude SDK clients per user session.
+    """Manages a single persistent Claude SDK client.
 
-    This ensures conversation history is maintained across requests
-    instead of creating a new client for each chat message.
+    Thinkube is a single-user environment, so we maintain one client
+    to preserve conversation history across requests.
     """
 
     def __init__(self):
         """Initialize the client manager."""
-        self._clients: Dict[str, Dict] = {}  # user_id -> {client, options}
+        self._client: Optional[object] = None
+        self._options: Optional[object] = None
         logger.info("ClaudeClientManager initialized")
 
-    async def get_or_create_client(self, user_id: str, options):
-        """Get existing client for user or create a new one.
+    async def get_or_create_client(self, options):
+        """Get existing client or create a new one.
 
         Args:
-            user_id: Unique identifier for the user
             options: ClaudeAgentOptions for client configuration
 
         Returns:
@@ -34,56 +33,34 @@ class ClaudeClientManager:
         """
         from claude_agent_sdk import ClaudeSDKClient
 
-        if user_id not in self._clients:
-            logger.info(f"Creating new Claude client for user: {user_id}")
-            client = ClaudeSDKClient(options=options)
-            await client.connect()
-
-            self._clients[user_id] = {
-                "client": client,
-                "options": options,
-                "permission_mode": getattr(options, 'permission_mode', 'default')
-            }
+        if self._client is None:
+            logger.info("Creating new Claude client")
+            self._client = ClaudeSDKClient(options=options)
+            await self._client.connect()
+            self._options = options
         else:
-            logger.debug(f"Reusing existing Claude client for user: {user_id}")
+            logger.debug("Reusing existing Claude client")
 
-        return self._clients[user_id]["client"]
+        return self._client
 
-    async def set_permission_mode(self, user_id: str, mode: str):
-        """Change permission mode for a user's client.
-
-        Args:
-            user_id: Unique identifier for the user
-            mode: Permission mode (plan/default/acceptEdits)
-        """
-        if user_id in self._clients:
-            logger.info(f"Changing permission mode for {user_id} to {mode}")
-            # Disconnect old client
-            await self._clients[user_id]["client"].disconnect()
-            del self._clients[user_id]
-            logger.info(f"Client reset for {user_id}, will recreate with new mode on next request")
-
-    async def reset_client(self, user_id: str):
-        """Reset a user's client, clearing conversation history.
-
-        Args:
-            user_id: Unique identifier for the user
-        """
-        if user_id in self._clients:
-            logger.info(f"Resetting Claude client for user: {user_id}")
-            await self._clients[user_id]["client"].disconnect()
-            del self._clients[user_id]
-            logger.info(f"Client cleared for {user_id}")
+    async def reset_client(self):
+        """Reset the client, clearing conversation history."""
+        if self._client is not None:
+            logger.info("Resetting Claude client")
+            await self._client.disconnect()
+            self._client = None
+            self._options = None
+            logger.info("Client cleared")
 
     async def shutdown(self):
-        """Shutdown all clients gracefully."""
-        logger.info(f"Shutting down {len(self._clients)} Claude clients")
-        for user_id, client_data in self._clients.items():
+        """Shutdown the client gracefully."""
+        if self._client is not None:
+            logger.info("Shutting down Claude client")
             try:
-                await client_data["client"].disconnect()
-                logger.debug(f"Disconnected client for {user_id}")
+                await self._client.disconnect()
+                logger.info("Claude client shut down successfully")
             except Exception as e:
-                logger.error(f"Error disconnecting client for {user_id}: {e}")
-
-        self._clients.clear()
-        logger.info("All Claude clients shut down")
+                logger.error(f"Error disconnecting client: {e}")
+            finally:
+                self._client = None
+                self._options = None

@@ -48,20 +48,60 @@ class TKAIExtension(ExtensionApp):
     def _register_tools(self):
         """Register all MCP tools with Claude Agent SDK."""
         from .agent.tools_registry import register_tool
+
+        # Basic notebook operations
         from .mcp.tools.list_notebooks import ListNotebooksTool
         from .mcp.tools.list_cells import ListCellsTool
         from .mcp.tools.read_cell import ReadCellTool
-        from .mcp.tools.execute_cell import ExecuteCellTool
         from .mcp.tools.list_kernels import ListKernelsTool
         from .mcp.tools.create_notebook import CreateNotebookTool
 
-        # Register all tools
+        # Kernel management
+        from .mcp.tools.kernel import (
+            RestartKernelTool,
+            InterruptKernelTool,
+            ListRunningKernelsTool,
+            GetKernelStatusTool
+        )
+
+        # Cell execution
+        from .mcp.tools.execution import (
+            ExecuteCellTool,
+            ExecuteIPythonTool,
+            InsertAndExecuteCellTool
+        )
+
+        # Cell manipulation
+        from .mcp.tools.manipulation import (
+            InsertCellTool,
+            DeleteCellTool,
+            OverwriteCellTool,
+            MoveCellTool
+        )
+
+        # Register basic tools
         register_tool(ListNotebooksTool())
         register_tool(ListCellsTool())
         register_tool(ReadCellTool())
-        register_tool(ExecuteCellTool())
         register_tool(ListKernelsTool())
         register_tool(CreateNotebookTool())
+
+        # Register kernel management tools
+        register_tool(RestartKernelTool())
+        register_tool(InterruptKernelTool())
+        register_tool(ListRunningKernelsTool())
+        register_tool(GetKernelStatusTool())
+
+        # Register execution tools
+        register_tool(ExecuteCellTool())
+        register_tool(ExecuteIPythonTool())
+        register_tool(InsertAndExecuteCellTool())
+
+        # Register manipulation tools
+        register_tool(InsertCellTool())
+        register_tool(DeleteCellTool())
+        register_tool(OverwriteCellTool())
+        register_tool(MoveCellTool())
 
     def initialize_handlers(self):
         """Initialize HTTP handlers."""

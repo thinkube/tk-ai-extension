@@ -220,15 +220,6 @@ class MCPChatHandler(JupyterHandler):
                 })
                 return
 
-            # Get user ID for client management
-            # JupyterHub returns User object, not dict
-            if hasattr(self.current_user, 'name'):
-                user_id = self.current_user.name
-            elif isinstance(self.current_user, dict):
-                user_id = self.current_user.get('name', 'default_user')
-            else:
-                user_id = str(self.current_user) if self.current_user else 'default_user'
-
             # Get Jupyter MCP server with tools
             from .agent.tools_registry import create_jupyter_mcp_server, get_allowed_tool_names
 
@@ -255,7 +246,7 @@ class MCPChatHandler(JupyterHandler):
                 env=os.environ.copy()  # Pass all environment variables including auth token
             )
 
-            # Get or create persistent Claude client for this user
+            # Get or create persistent Claude client
             client_manager = self.settings.get('claude_client_manager')
             if not client_manager:
                 self.log.error("Claude client manager not initialized!")
@@ -263,8 +254,8 @@ class MCPChatHandler(JupyterHandler):
                 self.finish({"error": "Server configuration error"})
                 return
 
-            self.log.info(f"Getting Claude client for user: {user_id}")
-            client = await client_manager.get_or_create_client(user_id, options)
+            self.log.info("Getting Claude client...")
+            client = await client_manager.get_or_create_client(options)
 
             # Execute query with persistent client (maintains conversation history)
             self.log.info("Sending query to existing Claude session...")
