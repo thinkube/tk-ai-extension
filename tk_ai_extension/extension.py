@@ -33,6 +33,12 @@ class TKAIExtension(ExtensionApp):
             # Register MCP tools
             self._register_tools()
 
+            # Initialize persistent Claude client manager
+            from .client_manager import ClaudeClientManager
+            client_manager = ClaudeClientManager()
+            self.settings['claude_client_manager'] = client_manager
+            self.log.info("tk-ai-extension: Claude client manager initialized")
+
             self.log.info("tk-ai-extension: MCP tools registered successfully")
 
         except Exception as e:

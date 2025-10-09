@@ -162,6 +162,9 @@ class MCPChatHandler(JupyterHandler):
                 })
                 return
 
+            # Get user ID for client management
+            user_id = self.current_user.get('name', 'default_user')
+
             # Get Jupyter MCP server with tools
             from .agent.tools_registry import create_jupyter_mcp_server, get_allowed_tool_names
 
@@ -181,21 +184,30 @@ class MCPChatHandler(JupyterHandler):
                 env=os.environ.copy()  # Pass all environment variables including auth token
             )
 
-            # Execute query with Claude SDK client
-            self.log.info("Initializing Claude SDK client...")
-            response_text = ""
-            async with ClaudeSDKClient(options=options) as client:
-                self.log.info("Client initialized, sending query...")
-                await client.query(user_message)
+            # Get or create persistent Claude client for this user
+            client_manager = self.settings.get('claude_client_manager')
+            if not client_manager:
+                self.log.error("Claude client manager not initialized!")
+                self.set_status(500)
+                self.finish({"error": "Server configuration error"})
+                return
 
-                self.log.info("Receiving response...")
-                # Collect response from all messages
-                async for message in client.receive_response():
-                    if isinstance(message, AssistantMessage):
-                        for block in message.content:
-                            if isinstance(block, TextBlock):
-                                response_text += block.text
-                self.log.info(f"Response received: {len(response_text)} chars")
+            self.log.info(f"Getting Claude client for user: {user_id}")
+            client = await client_manager.get_or_create_client(user_id, options)
+
+            # Execute query with persistent client (maintains conversation history)
+            self.log.info("Sending query to existing Claude session...")
+            response_text = ""
+            await client.query(user_message)
+
+            self.log.info("Receiving response...")
+            # Collect response from all messages
+            async for message in client.receive_response():
+                if isinstance(message, AssistantMessage):
+                    for block in message.content:
+                        if isinstance(block, TextBlock):
+                            response_text += block.text
+            self.log.info(f"Response received: {len(response_text)} chars")
 
             self.finish({
                 "response": response_text,
