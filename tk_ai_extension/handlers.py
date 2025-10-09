@@ -221,7 +221,13 @@ class MCPChatHandler(JupyterHandler):
                 return
 
             # Get user ID for client management
-            user_id = self.current_user.get('name', 'default_user')
+            # JupyterHub returns User object, not dict
+            if hasattr(self.current_user, 'name'):
+                user_id = self.current_user.name
+            elif isinstance(self.current_user, dict):
+                user_id = self.current_user.get('name', 'default_user')
+            else:
+                user_id = str(self.current_user) if self.current_user else 'default_user'
 
             # Get Jupyter MCP server with tools
             from .agent.tools_registry import create_jupyter_mcp_server, get_allowed_tool_names
