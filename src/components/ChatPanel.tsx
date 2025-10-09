@@ -6,6 +6,7 @@
  */
 
 import React, { useState, useEffect, useRef } from 'react';
+import { JupyterFrontEnd } from '@jupyterlab/application';
 import { MCPClient, IChatMessage } from '../api';
 import { renderMarkdown } from '../utils/markdown';
 
@@ -15,13 +16,35 @@ import { renderMarkdown } from '../utils/markdown';
 export interface IChatPanelProps {
   client: MCPClient;
   notebookPath: string | null;
+  labShell: JupyterFrontEnd.IShell | null;
 }
 
 /**
  * Chat Panel Component
  * Provides a chat interface for interacting with Claude AI
  */
-export const ChatPanel: React.FC<IChatPanelProps> = ({ client, notebookPath }) => {
+export const ChatPanel: React.FC<IChatPanelProps> = ({ client, notebookPath, labShell }) => {
+  /**
+   * Get the currently active notebook path at the time of sending a message
+   */
+  const getCurrentNotebookPath = (): string | null => {
+    if (!labShell) {
+      return null;
+    }
+
+    const current = labShell.currentWidget;
+    if (!current) {
+      return null;
+    }
+
+    // Check if the current widget is a notebook
+    const context = (current as any).context;
+    if (context && context.path && context.path.endsWith('.ipynb')) {
+      return context.path;
+    }
+
+    return null;
+  };
   const [messages, setMessages] = useState<IChatMessage[]>([]);
   const [inputValue, setInputValue] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -92,7 +115,9 @@ export const ChatPanel: React.FC<IChatPanelProps> = ({ client, notebookPath }) =
     setIsLoading(true);
 
     try {
-      const response = await client.sendMessage(inputValue, notebookPath);
+      // Get the current notebook path at the time of sending
+      const activeNotebookPath = getCurrentNotebookPath();
+      const response = await client.sendMessage(inputValue, activeNotebookPath);
 
       const assistantMessage: IChatMessage = {
         role: 'assistant',

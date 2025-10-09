@@ -27,6 +27,13 @@ export class ChatWidget extends ReactWidget {
 
     this.client = new MCPClient();
     this.labShell = labShell;
+
+    // Listen to shell changes to update notebook path
+    if (this.labShell) {
+      this.labShell.currentChanged.connect(() => {
+        this.update();
+      });
+    }
   }
 
   /**
@@ -53,6 +60,6 @@ export class ChatWidget extends ReactWidget {
 
   render(): JSX.Element {
     const notebookPath = this.getCurrentNotebookPath();
-    return <ChatPanel client={this.client} notebookPath={notebookPath} />;
+    return <ChatPanel client={this.client} notebookPath={notebookPath} labShell={this.labShell} />;
   }
 }
