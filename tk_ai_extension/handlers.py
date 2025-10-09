@@ -172,9 +172,6 @@ class MCPChatHandler(JupyterHandler):
 
             # Configure Claude options with MCP server
             # Set working directory to user's home for Claude CLI context
-            import os
-            from pathlib import Path
-
             user_home = Path.home()
 
             options = ClaudeAgentOptions(
