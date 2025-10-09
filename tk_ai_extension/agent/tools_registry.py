@@ -3,8 +3,8 @@
 
 """Tool registration system for Claude Agent SDK."""
 
-from typing import Dict, Any, Callable
-from claude_agent_sdk import tool
+from typing import Dict, Any, Callable, List
+from claude_agent_sdk import tool, create_sdk_mcp_server
 
 # Global registry of tool instances
 _tool_instances = {}
@@ -81,3 +81,35 @@ def register_tool(tool_instance):
 def get_registered_tools():
     """Get all registered tool instances."""
     return _tool_instances
+
+
+def create_jupyter_mcp_server():
+    """Create SDK MCP server with all registered Jupyter tools.
+
+    Returns:
+        MCP server configured with Jupyter tools
+    """
+    # Get all decorated tool functions
+    tool_functions = [
+        tool_data['executor']
+        for tool_data in _tool_instances.values()
+    ]
+
+    # Create MCP server
+    return create_sdk_mcp_server(
+        name="jupyter",
+        version="1.0.0",
+        tools=tool_functions
+    )
+
+
+def get_allowed_tool_names() -> List[str]:
+    """Get list of allowed tool names for ClaudeAgentOptions.
+
+    Returns:
+        List of tool names in format "mcp__jupyter__tool_name"
+    """
+    return [
+        f"mcp__jupyter__{tool_name}"
+        for tool_name in _tool_instances.keys()
+    ]

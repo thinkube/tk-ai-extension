@@ -153,7 +153,7 @@ class MCPChatHandler(JupyterHandler):
 
             # Import claude-agent-sdk
             try:
-                from claude_agent_sdk import query
+                from claude_agent_sdk import ClaudeSDKClient, ClaudeAgentOptions, AssistantMessage, TextBlock
             except ImportError:
                 self.set_status(500)
                 self.finish({
@@ -162,11 +162,32 @@ class MCPChatHandler(JupyterHandler):
                 })
                 return
 
-            # Execute query with Claude
-            result = await query(prompt=user_message)
+            # Get Jupyter MCP server with tools
+            from .agent.tools_registry import create_jupyter_mcp_server, get_allowed_tool_names
+
+            jupyter_mcp = create_jupyter_mcp_server()
+            allowed_tools = get_allowed_tool_names()
+
+            # Configure Claude options with MCP server
+            options = ClaudeAgentOptions(
+                mcp_servers={"jupyter": jupyter_mcp},
+                allowed_tools=allowed_tools
+            )
+
+            # Execute query with Claude SDK client
+            response_text = ""
+            async with ClaudeSDKClient(options=options) as client:
+                await client.query(user_message)
+
+                # Collect response from all messages
+                async for message in client.receive_response():
+                    if isinstance(message, AssistantMessage):
+                        for block in message.content:
+                            if isinstance(block, TextBlock):
+                                response_text += block.text
 
             self.finish({
-                "response": str(result),
+                "response": response_text,
                 "timestamp": body.get('timestamp', None)
             })
 
