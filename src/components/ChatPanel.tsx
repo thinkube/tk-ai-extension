@@ -7,6 +7,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { MCPClient, IChatMessage } from '../api';
+import { renderMarkdown } from '../utils/markdown';
 
 /**
  * Props for ChatPanel component
@@ -144,7 +145,10 @@ export const ChatPanel: React.FC<IChatPanelProps> = ({ client, notebookPath }) =
                 {formatTimestamp(msg.timestamp)}
               </span>
             </div>
-            <div className="tk-message-content">{msg.content}</div>
+            <div
+              className="tk-message-content"
+              dangerouslySetInnerHTML={{ __html: renderMarkdown(msg.content) }}
+            />
           </div>
         ))}
         {isLoading && (
