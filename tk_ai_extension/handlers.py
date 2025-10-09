@@ -165,8 +165,10 @@ class MCPChatHandler(JupyterHandler):
             # Get Jupyter MCP server with tools
             from .agent.tools_registry import create_jupyter_mcp_server, get_allowed_tool_names
 
+            self.log.info("Creating Jupyter MCP server...")
             jupyter_mcp = create_jupyter_mcp_server()
             allowed_tools = get_allowed_tool_names()
+            self.log.info(f"MCP server created with {len(allowed_tools)} tools")
 
             # Configure Claude options with MCP server
             options = ClaudeAgentOptions(
@@ -175,16 +177,20 @@ class MCPChatHandler(JupyterHandler):
             )
 
             # Execute query with Claude SDK client
+            self.log.info("Initializing Claude SDK client...")
             response_text = ""
             async with ClaudeSDKClient(options=options) as client:
+                self.log.info("Client initialized, sending query...")
                 await client.query(user_message)
 
+                self.log.info("Receiving response...")
                 # Collect response from all messages
                 async for message in client.receive_response():
                     if isinstance(message, AssistantMessage):
                         for block in message.content:
                             if isinstance(block, TextBlock):
                                 response_text += block.text
+                self.log.info(f"Response received: {len(response_text)} chars")
 
             self.finish({
                 "response": response_text,
