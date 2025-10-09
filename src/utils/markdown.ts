@@ -8,10 +8,10 @@
 import { marked } from 'marked';
 
 // Configure marked for safe rendering
+// Valid options: async, breaks, gfm, pedantic, renderer, silent, tokenizer, walkTokens
 marked.setOptions({
-  breaks: true,
-  gfm: true,
-  mangle: false
+  breaks: true, // Enable line breaks
+  gfm: true // GitHub Flavored Markdown
 });
 
 /**
