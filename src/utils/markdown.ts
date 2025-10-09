@@ -26,7 +26,9 @@ export function renderMarkdown(markdown: string): string {
   }
 
   try {
-    return marked.parse(markdown) as string;
+    // Use synchronous parse
+    const result = marked(markdown);
+    return typeof result === 'string' ? result : String(result);
   } catch (error) {
     console.error('Error rendering markdown:', error);
     return markdown; // Fallback to plain text
