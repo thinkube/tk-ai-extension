@@ -14,7 +14,33 @@ class TKMagics(Magics):
 
     def __init__(self, shell):
         super().__init__(shell)
+        self._load_secrets()
         self._check_api_key()
+
+    def _load_secrets(self):
+        """Load secrets from .secrets.env file if it exists."""
+        secrets_path = os.path.expanduser('~/thinkube/notebooks/.secrets.env')
+        if os.path.exists(secrets_path):
+            try:
+                with open(secrets_path, 'r') as f:
+                    for line in f:
+                        line = line.strip()
+                        # Skip comments and empty lines
+                        if not line or line.startswith('#'):
+                            continue
+                        # Parse export statements
+                        if line.startswith('export '):
+                            line = line[7:]  # Remove 'export '
+                        # Split on first = only
+                        if '=' in line:
+                            key, value = line.split('=', 1)
+                            # Remove quotes if present
+                            value = value.strip('"').strip("'")
+                            os.environ[key] = value
+            except Exception as e:
+                self.shell.system(
+                    f'echo "⚠️  Warning: Failed to load secrets from {secrets_path}: {e}"'
+                )
 
     def _check_api_key(self):
         """Check if CLAUDE_CODE_OAUTH_TOKEN or ANTHROPIC_API_KEY is set."""

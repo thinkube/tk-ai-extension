@@ -124,25 +124,27 @@ export class MCPClient {
 
   /**
    * Send a chat message and get Claude's response
-   * This would integrate with Claude Agent SDK on the backend
    */
   async sendMessage(message: string): Promise<string> {
-    // For now, this is a placeholder
-    // In the full implementation, this would:
-    // 1. Send message to a new endpoint (e.g., /api/tk-ai/mcp/chat)
-    // 2. Backend uses Claude Agent SDK with MCP tools
-    // 3. Return Claude's response
+    const url = URLExt.join(this.baseUrl, 'chat');
+    const response = await ServerConnection.makeRequest(
+      url,
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          message: message,
+          timestamp: new Date().toISOString()
+        })
+      },
+      this.serverSettings
+    );
 
-    // Temporary: Just echo back with a note
-    return `Note: Full chat integration coming soon. You sent: "${message}"
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message || error.error || `Chat failed: ${response.statusText}`);
+    }
 
-For now, use %%tk magic in notebooks.
-
-Available tools:
-- list_notebooks
-- list_cells
-- read_cell
-- execute_cell (placeholder)
-- list_kernels`;
+    const data = await response.json();
+    return data.response;
   }
 }

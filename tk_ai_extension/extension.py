@@ -57,12 +57,13 @@ class TKAIExtension(ExtensionApp):
 
     def initialize_handlers(self):
         """Initialize HTTP handlers."""
-        from .handlers import MCPHealthHandler, MCPToolsListHandler, MCPToolCallHandler
+        from .handlers import MCPHealthHandler, MCPToolsListHandler, MCPToolCallHandler, MCPChatHandler
 
         self.handlers.extend([
             (r"/api/tk-ai/mcp/health", MCPHealthHandler),
             (r"/api/tk-ai/mcp/tools/list", MCPToolsListHandler),
             (r"/api/tk-ai/mcp/tools/call", MCPToolCallHandler),
+            (r"/api/tk-ai/mcp/chat", MCPChatHandler),
         ])
 
 
