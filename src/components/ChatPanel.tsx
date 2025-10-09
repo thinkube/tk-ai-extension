@@ -13,13 +13,14 @@ import { MCPClient, IChatMessage } from '../api';
  */
 export interface IChatPanelProps {
   client: MCPClient;
+  notebookPath: string | null;
 }
 
 /**
  * Chat Panel Component
  * Provides a chat interface for interacting with Claude AI
  */
-export const ChatPanel: React.FC<IChatPanelProps> = ({ client }) => {
+export const ChatPanel: React.FC<IChatPanelProps> = ({ client, notebookPath }) => {
   const [messages, setMessages] = useState<IChatMessage[]>([]);
   const [inputValue, setInputValue] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -90,7 +91,7 @@ export const ChatPanel: React.FC<IChatPanelProps> = ({ client }) => {
     setIsLoading(true);
 
     try {
-      const response = await client.sendMessage(inputValue);
+      const response = await client.sendMessage(inputValue, notebookPath);
 
       const assistantMessage: IChatMessage = {
         role: 'assistant',

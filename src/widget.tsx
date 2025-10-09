@@ -6,6 +6,7 @@
  */
 
 import { ReactWidget } from '@jupyterlab/apputils';
+import { ILabShell } from '@jupyterlab/application';
 import React from 'react';
 import { MCPClient } from './api';
 import { ChatPanel } from './components/ChatPanel';
@@ -15,8 +16,9 @@ import { ChatPanel } from './components/ChatPanel';
  */
 export class ChatWidget extends ReactWidget {
   private client: MCPClient;
+  private labShell: ILabShell | null;
 
-  constructor() {
+  constructor(labShell: ILabShell | null = null) {
     super();
     this.id = 'tk-ai-chat';
     this.title.label = 'tk-ai Chat';
@@ -24,9 +26,33 @@ export class ChatWidget extends ReactWidget {
     this.addClass('tk-chat-widget');
 
     this.client = new MCPClient();
+    this.labShell = labShell;
+  }
+
+  /**
+   * Get the current notebook path if one is open
+   */
+  private getCurrentNotebookPath(): string | null {
+    if (!this.labShell) {
+      return null;
+    }
+
+    const current = this.labShell.currentWidget;
+    if (!current) {
+      return null;
+    }
+
+    // Check if the current widget is a notebook
+    const context = (current as any).context;
+    if (context && context.path && context.path.endsWith('.ipynb')) {
+      return context.path;
+    }
+
+    return null;
   }
 
   render(): JSX.Element {
-    return <ChatPanel client={this.client} />;
+    const notebookPath = this.getCurrentNotebookPath();
+    return <ChatPanel client={this.client} notebookPath={notebookPath} />;
   }
 }

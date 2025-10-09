@@ -120,6 +120,63 @@ class MCPToolCallHandler(JupyterHandler):
 class MCPChatHandler(JupyterHandler):
     """Chat endpoint using Claude Agent SDK with MCP tools."""
 
+    def _build_system_prompt(self, notebooks_dir: Path, notebook_path: str = None) -> str:
+        """Build enhanced system prompt with notebook context.
+
+        Args:
+            notebooks_dir: Path to user's notebooks directory
+            notebook_path: Path to currently open notebook (if any)
+
+        Returns:
+            System prompt string with context
+        """
+        prompt_parts = [
+            "You are a helpful AI assistant with access to Jupyter notebooks and Thinkube services.",
+            "",
+            "## Current Context",
+            f"Working directory: {notebooks_dir}",
+        ]
+
+        # Add currently open notebook if available
+        if notebook_path:
+            prompt_parts.extend([
+                f"Currently open notebook: {notebook_path}",
+                ""
+            ])
+        else:
+            prompt_parts.append("")
+
+        prompt_parts.extend([
+            "## Available Capabilities",
+            "- List and read Jupyter notebooks in the current directory",
+            "- List and read cells from notebooks",
+            "- Execute code cells in running kernels",
+            "- Access Thinkube services via ~/.thinkube_env environment variables",
+            "",
+            "## Thinkube Services",
+            "All services are accessible via environment variables loaded from ~/.thinkube_env.",
+            "Use `from dotenv import load_dotenv; load_dotenv('/home/jovyan/.thinkube_env')` in Python.",
+            "",
+            "Available services include:",
+            "- Databases: PostgreSQL, Valkey (Redis-compatible), ClickHouse",
+            "- Vector DBs: Qdrant, Chroma, Weaviate",
+            "- Storage: SeaweedFS (S3-compatible)",
+            "- ML Tools: MLflow, LiteLLM, Langfuse",
+            "- Search: OpenSearch",
+            "- Annotation: Argilla, CVAT",
+            "",
+            "## Guidelines",
+            "- When asked about notebooks, use MCP tools to list and read them",
+            "- When executing code, verify kernel is available first",
+            "- Always provide clear explanations of what you're doing",
+            "- If CLAUDE.md exists in the working directory, respect any user preferences defined there",
+        ])
+
+        if notebook_path:
+            prompt_parts.append(f"- When asked about 'this notebook' or 'current notebook', refer to {notebook_path}")
+
+        return "\n".join(prompt_parts)
+
     @web.authenticated
     async def post(self):
         """POST /api/tk-ai/mcp/chat
@@ -145,6 +202,7 @@ class MCPChatHandler(JupyterHandler):
 
             body = json.loads(self.request.body.decode('utf-8'))
             user_message = body.get('message')
+            notebook_path = body.get('notebook_path')
 
             if not user_message:
                 self.set_status(400)
@@ -174,13 +232,17 @@ class MCPChatHandler(JupyterHandler):
             self.log.info(f"MCP server created with {len(allowed_tools)} tools")
 
             # Configure Claude options with MCP server
-            # Set working directory to user's home for Claude CLI context
-            user_home = Path.home()
+            # Set working directory to user's notebooks for Claude CLI context
+            user_notebooks = Path.home() / 'thinkube' / 'notebooks'
+
+            # Build enhanced system prompt with notebook context
+            system_prompt = self._build_system_prompt(user_notebooks, notebook_path)
 
             options = ClaudeAgentOptions(
                 mcp_servers={"jupyter": jupyter_mcp},
                 allowed_tools=allowed_tools,
-                cwd=str(user_home),  # Set working directory
+                cwd=str(user_notebooks),  # Set working directory to notebooks
+                system_prompt=system_prompt,  # Enhanced context
                 env=os.environ.copy()  # Pass all environment variables including auth token
             )
 

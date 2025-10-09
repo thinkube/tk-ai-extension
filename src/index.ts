@@ -48,7 +48,7 @@ const plugin: JupyterFrontEndPlugin<void> = {
       caption: 'Open the tk-ai chat interface',
       execute: () => {
         if (!widget || widget.isDisposed) {
-          widget = new ChatWidget();
+          widget = new ChatWidget(app.shell);
           widget.id = 'tk-ai-chat';
           widget.title.label = 'tk-ai Chat';
           widget.title.closable = true;

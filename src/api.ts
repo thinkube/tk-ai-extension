@@ -125,16 +125,23 @@ export class MCPClient {
   /**
    * Send a chat message and get Claude's response
    */
-  async sendMessage(message: string): Promise<string> {
+  async sendMessage(message: string, notebookPath: string | null = null): Promise<string> {
     const url = URLExt.join(this.baseUrl, 'chat');
+    const requestBody: any = {
+      message: message,
+      timestamp: new Date().toISOString()
+    };
+
+    // Include notebook path if available
+    if (notebookPath) {
+      requestBody.notebook_path = notebookPath;
+    }
+
     const response = await ServerConnection.makeRequest(
       url,
       {
         method: 'POST',
-        body: JSON.stringify({
-          message: message,
-          timestamp: new Date().toISOString()
-        })
+        body: JSON.stringify(requestBody)
       },
       this.serverSettings
     );
