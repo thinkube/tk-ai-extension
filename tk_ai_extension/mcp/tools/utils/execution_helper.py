@@ -31,18 +31,25 @@ async def execute_code_with_timeout(
         return ["[Empty code]"]
 
     try:
-        # Get kernel client
+        # Get kernel
         kernel = kernel_manager.get_kernel(kernel_id)
-        client = kernel.client()
 
-        # Execute code
-        msg_id = client.execute(code)
+        # Create a new kernel client for this execution
+        client = kernel.client()
+        client.start_channels()
+
+        # Wait for client to be ready
+        await asyncio.sleep(0.5)
+
+        # Execute code - this is synchronous but returns immediately
+        msg_id = client.execute(code, silent=False, store_history=True)
 
         # Collect outputs with timeout
         outputs = []
         start_time = asyncio.get_event_loop().time()
+        execution_done = False
 
-        while True:
+        while not execution_done:
             # Check timeout
             if asyncio.get_event_loop().time() - start_time > timeout_seconds:
                 # Interrupt kernel
@@ -50,11 +57,16 @@ async def execute_code_with_timeout(
                     await kernel_manager.interrupt_kernel(kernel_id)
                 except Exception as e:
                     logger.warning(f"Failed to interrupt kernel: {e}")
+                client.stop_channels()
                 return [f"[TIMEOUT ERROR: Execution exceeded {timeout_seconds} seconds]"]
 
             # Get messages (non-blocking)
             try:
-                msg = client.get_iopub_msg(timeout=1)
+                # Run blocking call in thread pool
+                msg = await asyncio.get_event_loop().run_in_executor(
+                    None,
+                    lambda: client.get_iopub_msg(timeout=0.5)
+                )
 
                 if msg['parent_header'].get('msg_id') == msg_id:
                     msg_type = msg['header']['msg_type']
@@ -69,19 +81,25 @@ async def execute_code_with_timeout(
                         data = content.get('data', {})
                         outputs.append(data.get('text/plain', str(data)))
                     elif msg_type == 'error':
-                        outputs.append(f"[ERROR: {content.get('ename', 'Unknown')}: {content.get('evalue', '')}]")
+                        ename = content.get('ename', 'Unknown')
+                        evalue = content.get('evalue', '')
+                        traceback = '\n'.join(content.get('traceback', []))
+                        outputs.append(f"[ERROR: {ename}: {evalue}\n{traceback}]")
                     elif msg_type == 'status':
                         if content.get('execution_state') == 'idle':
-                            break
+                            execution_done = True
 
-            except Exception:
-                # No message available, wait a bit
+            except Exception as e:
+                # No message available or timeout, wait a bit
                 await asyncio.sleep(0.1)
+
+        # Stop client channels
+        client.stop_channels()
 
         return outputs if outputs else ["[No output]"]
 
     except Exception as e:
-        logger.error(f"Execution error: {e}")
+        logger.error(f"Execution error: {e}", exc_info=True)
         return [f"[ERROR: {str(e)}]"]
 
 
