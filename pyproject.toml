@@ -61,6 +61,7 @@ exclude = [".github", "binder"]
 [tool.hatch.build.targets.wheel.shared-data]
 "tk_ai_extension/labextension" = "share/jupyter/labextensions/tk-ai-extension"
 "install.json" = "share/jupyter/labextensions/tk-ai-extension/install.json"
+"jupyter-config/jupyter_server_config.d/tk_ai_extension.json" = "etc/jupyter/jupyter_server_config.d/tk_ai_extension.json"
 
 [tool.hatch.build.hooks.version]
 path = "tk_ai_extension/_version.py"
