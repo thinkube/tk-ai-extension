@@ -74,17 +74,13 @@ class GetKernelStatusTool(BaseTool):
                     "available_kernels": [k['id'] for k in kernels]
                 }
 
-            # Get kernel details
-            kernel = kernel_manager.get_kernel(kernel_id)
-
             return {
                 "success": True,
                 "kernel_id": kernel_id,
                 "name": kernel_info.get('name', 'unknown'),
                 "execution_state": kernel_info.get('execution_state', 'unknown'),
                 "last_activity": kernel_info.get('last_activity'),
-                "connections": kernel_info.get('connections', 0),
-                "ready": kernel.ready.is_set() if hasattr(kernel, 'ready') else True
+                "connections": kernel_info.get('connections', 0)
             }
 
         except Exception as e:

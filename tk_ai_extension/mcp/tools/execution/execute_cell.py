@@ -81,7 +81,6 @@ class ExecuteCellTool(BaseTool):
 
         try:
             # Get absolute path
-            from ..list_notebooks import NotebookManager
             serverapp = getattr(contents_manager, 'parent', None)
             abs_path = get_notebook_path(serverapp, notebook_path)
 
