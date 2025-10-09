@@ -46,7 +46,7 @@ dev = [
 ]
 
 [project.entry-points."jupyter_server.extension_points"]
-tk_ai_extension = "tk_ai_extension.extension"
+tk_ai_extension = "tk_ai_extension"
 
 [tool.hatch.version]
 source = "nodejs"
