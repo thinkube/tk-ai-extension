@@ -100,22 +100,32 @@ class ExecuteCellTool(BaseTool):
             file_id = file_id_manager.get_id(abs_path)
 
             # Get YDoc directly from DocumentRoom (no WebSocket needed - we're inside the server!)
-            yroom_manager = serverapp.web_app.settings.get("yroom_manager")
-            if not yroom_manager:
+            ywebsocket_server = serverapp.web_app.settings.get("ywebsocket_server")
+            if not ywebsocket_server:
                 return {
-                    "error": "yroom_manager not available (collaboration not enabled?)",
+                    "error": "ywebsocket_server not available (collaboration not enabled?)",
                     "success": False
                 }
 
             room_id = f"json:notebook:{file_id}"
-            if not yroom_manager.has_room(room_id):
+
+            # Check if notebook is open in a collaborative session
+            if not ywebsocket_server.room_exists(room_id):
                 return {
                     "error": f"Notebook not open in collaborative session (room {room_id} not found)",
                     "success": False
                 }
 
-            # Get the DocumentRoom and YDoc
-            yroom = yroom_manager.get_room(room_id)
+            # Get the DocumentRoom from ywebsocket_server
+            try:
+                yroom = await ywebsocket_server.get_room(room_id)
+            except Exception as e:
+                return {
+                    "error": f"Failed to get room {room_id}: {e}",
+                    "success": False
+                }
+
+            # Get YDoc from the room
             ydoc = await yroom.get_jupyter_ydoc()
 
             serverapp.log.info(f"Got YDoc directly from DocumentRoom {room_id}")

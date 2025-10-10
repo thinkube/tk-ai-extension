@@ -21,15 +21,15 @@ async def get_jupyter_ydoc(serverapp: Any, file_id: str) -> Optional[Any]:
         YNotebook document if available, None otherwise
     """
     try:
-        yroom_manager = serverapp.web_app.settings.get("yroom_manager")
-        if yroom_manager is None:
-            logger.debug("yroom_manager not available")
+        ywebsocket_server = serverapp.web_app.settings.get("ywebsocket_server")
+        if ywebsocket_server is None:
+            logger.debug("ywebsocket_server not available")
             return None
 
         room_id = f"json:notebook:{file_id}"
 
-        if yroom_manager.has_room(room_id):
-            yroom = yroom_manager.get_room(room_id)
+        if ywebsocket_server.room_exists(room_id):
+            yroom = await ywebsocket_server.get_room(room_id)
             notebook = await yroom.get_jupyter_ydoc()
             logger.debug(f"Got YDoc for {file_id}")
             return notebook
