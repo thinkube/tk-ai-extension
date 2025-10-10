@@ -25,6 +25,9 @@ class BaseTool(ABC):
         contents_manager: Any,
         kernel_manager: Any,
         kernel_spec_manager: Optional[Any] = None,
+        session_manager: Optional[Any] = None,
+        notebook_manager: Optional[Any] = None,
+        serverapp: Optional[Any] = None,
         **kwargs
     ) -> Any:
         """Execute the tool logic with direct manager access.
@@ -33,6 +36,9 @@ class BaseTool(ABC):
             contents_manager: Direct access to Jupyter contents manager
             kernel_manager: Direct access to Jupyter kernel manager
             kernel_spec_manager: Direct access to kernel spec manager (optional)
+            session_manager: Direct access to session manager (optional)
+            notebook_manager: NotebookManager instance for tracking active notebooks (optional)
+            serverapp: Jupyter ServerApp instance for ExecutionStack access (optional)
             **kwargs: Tool-specific parameters
 
         Returns:

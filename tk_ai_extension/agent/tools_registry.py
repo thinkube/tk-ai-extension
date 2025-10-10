@@ -11,7 +11,7 @@ _tool_instances = {}
 _jupyter_managers = {}
 
 
-def set_jupyter_managers(contents_manager, kernel_manager, kernel_spec_manager=None):
+def set_jupyter_managers(contents_manager, kernel_manager, kernel_spec_manager=None, session_manager=None, notebook_manager=None, serverapp=None):
     """Set Jupyter managers for tool execution.
 
     Must be called during extension initialization.
@@ -20,6 +20,9 @@ def set_jupyter_managers(contents_manager, kernel_manager, kernel_spec_manager=N
     _jupyter_managers['contents_manager'] = contents_manager
     _jupyter_managers['kernel_manager'] = kernel_manager
     _jupyter_managers['kernel_spec_manager'] = kernel_spec_manager
+    _jupyter_managers['session_manager'] = session_manager
+    _jupyter_managers['notebook_manager'] = notebook_manager
+    _jupyter_managers['serverapp'] = serverapp
 
 
 def register_tool(tool_instance):
@@ -41,6 +44,9 @@ def register_tool(tool_instance):
                 contents_manager=_jupyter_managers.get('contents_manager'),
                 kernel_manager=_jupyter_managers.get('kernel_manager'),
                 kernel_spec_manager=_jupyter_managers.get('kernel_spec_manager'),
+                session_manager=_jupyter_managers.get('session_manager'),
+                notebook_manager=_jupyter_managers.get('notebook_manager'),
+                serverapp=_jupyter_managers.get('serverapp'),
                 **args
             )
 

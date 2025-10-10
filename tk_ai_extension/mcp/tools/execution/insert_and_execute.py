@@ -20,7 +20,7 @@ class InsertAndExecuteCellTool(BaseTool):
 
     @property
     def description(self) -> str:
-        return "Insert a new code cell into a notebook and execute it immediately"
+        return "Insert a new code cell into a notebook and execute it immediately. NOTE: You must call use_notebook first to connect to a notebook and its kernel."
 
     @property
     def input_schema(self) -> dict:
@@ -57,6 +57,9 @@ class InsertAndExecuteCellTool(BaseTool):
         contents_manager: Any,
         kernel_manager: Any,
         kernel_spec_manager: Optional[Any] = None,
+        session_manager: Optional[Any] = None,
+        notebook_manager: Optional[Any] = None,
+        serverapp: Optional[Any] = None,
         **kwargs
     ) -> Dict[str, Any]:
         """Insert and execute a cell.
@@ -65,6 +68,9 @@ class InsertAndExecuteCellTool(BaseTool):
             contents_manager: Jupyter contents manager
             kernel_manager: Jupyter kernel manager
             kernel_spec_manager: Kernel spec manager (unused)
+            session_manager: Session manager (unused)
+            notebook_manager: Notebook manager for tracking
+            serverapp: Jupyter ServerApp instance
             notebook_path: Path to notebook
             cell_index: Where to insert
             code: Code to insert
@@ -84,6 +90,14 @@ class InsertAndExecuteCellTool(BaseTool):
             return {
                 "error": "notebook_path, cell_index, code, and kernel_id are required",
                 "success": False
+            }
+
+        # Proactive check: suggest using use_notebook if no notebooks connected
+        if notebook_manager and notebook_manager.is_empty():
+            return {
+                "error": "No notebook connected. Use the use_notebook tool first to connect to a notebook.",
+                "success": False,
+                "suggestion": "Call use_notebook with notebook_name and notebook_path parameters"
             }
 
         try:

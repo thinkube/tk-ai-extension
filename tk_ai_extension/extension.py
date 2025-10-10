@@ -21,13 +21,23 @@ class TKAIExtension(ExtensionApp):
             contents_manager = self.serverapp.contents_manager
             kernel_manager = self.serverapp.kernel_manager
             kernel_spec_manager = self.serverapp.kernel_spec_manager
+            session_manager = self.serverapp.session_manager
+
+            # Initialize notebook manager for tracking active notebooks
+            from .notebook_manager import NotebookManager
+            notebook_manager = NotebookManager()
+            self.settings['notebook_manager'] = notebook_manager
+            self.log.info("tk-ai-extension: Notebook manager initialized")
 
             # Set managers for tool execution
             from .agent.tools_registry import set_jupyter_managers
             set_jupyter_managers(
                 contents_manager,
                 kernel_manager,
-                kernel_spec_manager
+                kernel_spec_manager,
+                session_manager,
+                notebook_manager,
+                self.serverapp  # Pass serverapp for ExecutionStack access
             )
 
             # Register MCP tools
@@ -79,6 +89,9 @@ class TKAIExtension(ExtensionApp):
             MoveCellTool
         )
 
+        # Notebook connection
+        from .mcp.tools.use_notebook import UseNotebookTool
+
         # Register basic tools
         register_tool(ListNotebooksTool())
         register_tool(ListCellsTool())
@@ -102,6 +115,9 @@ class TKAIExtension(ExtensionApp):
         register_tool(DeleteCellTool())
         register_tool(OverwriteCellTool())
         register_tool(MoveCellTool())
+
+        # Register notebook connection tools
+        register_tool(UseNotebookTool())
 
     def initialize_handlers(self):
         """Initialize HTTP handlers."""

@@ -17,7 +17,7 @@ class ExecuteIPythonTool(BaseTool):
 
     @property
     def description(self) -> str:
-        return "Execute arbitrary IPython code in a kernel without modifying any notebook"
+        return "Execute arbitrary IPython code in a kernel without modifying any notebook. NOTE: You must call use_notebook first to connect to a notebook and its kernel."
 
     @property
     def input_schema(self) -> dict:
@@ -46,6 +46,9 @@ class ExecuteIPythonTool(BaseTool):
         contents_manager: Any,
         kernel_manager: Any,
         kernel_spec_manager: Optional[Any] = None,
+        session_manager: Optional[Any] = None,
+        notebook_manager: Optional[Any] = None,
+        serverapp: Optional[Any] = None,
         **kwargs
     ) -> Dict[str, Any]:
         """Execute IPython code.
@@ -54,6 +57,9 @@ class ExecuteIPythonTool(BaseTool):
             contents_manager: Jupyter contents manager (unused)
             kernel_manager: Jupyter kernel manager
             kernel_spec_manager: Kernel spec manager (unused)
+            session_manager: Session manager (unused)
+            notebook_manager: Notebook manager (unused)
+            serverapp: Jupyter ServerApp instance for ExecutionStack
             kernel_id: Kernel ID to use
             code: Code to execute
             timeout_seconds: Execution timeout
@@ -71,6 +77,14 @@ class ExecuteIPythonTool(BaseTool):
                 "success": False
             }
 
+        # Proactive check: suggest using use_notebook if no notebooks connected
+        if notebook_manager and notebook_manager.is_empty():
+            return {
+                "error": "No notebook connected. Use the use_notebook tool first to connect to a notebook.",
+                "success": False,
+                "suggestion": "Call use_notebook with notebook_name and notebook_path parameters"
+            }
+
         try:
             # Check if kernel exists
             kernels = list(kernel_manager.list_kernels())
@@ -81,9 +95,9 @@ class ExecuteIPythonTool(BaseTool):
                     "available_kernels": [k['id'] for k in kernels]
                 }
 
-            # Execute code
+            # Execute code (will use ExecutionStack if serverapp is provided)
             outputs = await execute_code_with_timeout(
-                kernel_manager, kernel_id, code, timeout_seconds
+                kernel_manager, kernel_id, code, timeout_seconds, serverapp=serverapp
             )
 
             return {
