@@ -437,7 +437,7 @@ class NotebookConnectHandler(JupyterHandler):
                 self.log.info(f"Notebook {notebook_name} already connected, kernel: {kernel_id}")
             else:
                 # Use the use_notebook tool to connect
-                from .agent.tools_registry import get_registered_tools
+                from .agent.tools_registry import get_registered_tools, _jupyter_managers
 
                 tools = get_registered_tools()
                 if 'use_notebook' not in tools:
@@ -445,13 +445,19 @@ class NotebookConnectHandler(JupyterHandler):
                     self.finish({"error": "use_notebook tool not available"})
                     return
 
-                # Execute use_notebook tool
-                use_notebook_executor = tools['use_notebook']['executor']
-                result = await use_notebook_executor({
-                    "notebook_name": notebook_name,
-                    "notebook_path": notebook_path,
-                    "mode": "connect"
-                })
+                # Get the tool instance and execute it directly
+                use_notebook_tool = tools['use_notebook']['instance']
+                result = await use_notebook_tool.execute(
+                    contents_manager=_jupyter_managers.get('contents_manager'),
+                    kernel_manager=_jupyter_managers.get('kernel_manager'),
+                    kernel_spec_manager=_jupyter_managers.get('kernel_spec_manager'),
+                    session_manager=_jupyter_managers.get('session_manager'),
+                    notebook_manager=_jupyter_managers.get('notebook_manager'),
+                    serverapp=_jupyter_managers.get('serverapp'),
+                    notebook_name=notebook_name,
+                    notebook_path=notebook_path,
+                    mode="connect"
+                )
 
                 # Check if connection was successful
                 if "error" in str(result).lower() or "not found" in str(result).lower():
