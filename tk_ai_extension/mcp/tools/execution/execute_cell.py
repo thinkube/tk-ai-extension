@@ -105,9 +105,9 @@ class ExecuteCellTool(BaseTool):
             import uuid
             session_id = str(uuid.uuid4())
 
-            base_url = f"http://127.0.0.1:{serverapp.port}"
-            ws_url = base_url.replace("http://", "ws://")
-            ws_url = f"{ws_url}/api/collaboration/room/json:notebook:{file_id}?sessionId={session_id}"
+            # Get JupyterHub base URL (includes /user/username/)
+            base_url = serverapp.base_url
+            ws_url = f"ws://127.0.0.1:{serverapp.port}{base_url}api/collaboration/room/json:notebook:{file_id}?sessionId={session_id}"
 
             serverapp.log.info(f"Connecting to notebook via WebSocket as session {session_id}: {ws_url}")
 
