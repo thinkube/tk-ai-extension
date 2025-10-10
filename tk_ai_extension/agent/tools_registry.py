@@ -39,6 +39,9 @@ def register_tool(tool_instance):
     # Create async wrapper function for this tool
     async def tool_executor(args: Dict[str, Any]) -> Dict[str, Any]:
         """Execute tool with Jupyter managers."""
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.info(f"[TOOL CALL] {tool_instance.name} called with args: {args}")
         try:
             result = await tool_instance.execute(
                 contents_manager=_jupyter_managers.get('contents_manager'),

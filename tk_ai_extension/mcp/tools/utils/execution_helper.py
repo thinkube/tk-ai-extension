@@ -222,11 +222,13 @@ async def execute_code_with_timeout(
     kernel_id: str,
     code: str,
     timeout_seconds: int = 300,
-    serverapp: Optional[Any] = None
+    serverapp: Optional[Any] = None,
+    document_id: Optional[str] = None,
+    cell_id: Optional[str] = None
 ) -> List[str]:
     """Execute code in a kernel with timeout.
 
-    This function tries to use ExecutionStack if serverapp is provided,
+    This function uses ExecutionStack with RTC metadata when serverapp is provided,
     otherwise falls back to the legacy blocking method.
 
     Args:
@@ -235,21 +237,23 @@ async def execute_code_with_timeout(
         code: Code to execute
         timeout_seconds: Maximum time to wait
         serverapp: Optional Jupyter ServerApp instance (for ExecutionStack)
+        document_id: Optional document ID for RTC integration (format: json:notebook:<file_id>)
+        cell_id: Optional cell ID for RTC integration
 
     Returns:
         List of output strings
     """
-    # Try ExecutionStack first if serverapp is available
+    # Use ExecutionStack with RTC metadata when available
     if serverapp is not None:
-        logger.info(f"execute_code_with_timeout: Using ExecutionStack (serverapp is not None)")
-        result = await execute_via_execution_stack(
+        logger.info(f"execute_code_with_timeout: Using ExecutionStack with document_id={document_id}, cell_id={cell_id}")
+        return await execute_via_execution_stack(
             serverapp=serverapp,
             kernel_id=kernel_id,
             code=code,
+            document_id=document_id,
+            cell_id=cell_id,
             timeout=timeout_seconds
         )
-        logger.info(f"execute_code_with_timeout: ExecutionStack returned: {result}")
-        return result
 
     logger.warning(f"execute_code_with_timeout: serverapp is None, falling back to legacy method")
 

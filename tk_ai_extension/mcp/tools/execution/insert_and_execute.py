@@ -138,9 +138,22 @@ class InsertAndExecuteCellTool(BaseTool):
                         }
                         ydoc.ycells.insert(cell_index, new_cell)
 
-                        # Execute the cell
+                        # Get the newly inserted cell to retrieve its ID
+                        inserted_cell = ydoc.ycells[cell_index]
+                        inserted_cell_id = inserted_cell.get("id")
+
+                        # Construct document_id for RTC integration
+                        document_id = f"json:notebook:{file_id}"
+
+                        # Execute the cell with RTC metadata
                         outputs = await execute_code_with_timeout(
-                            kernel_manager, kernel_id, code, timeout_seconds, serverapp=serverapp
+                            kernel_manager,
+                            kernel_id,
+                            code,
+                            timeout_seconds,
+                            serverapp=serverapp,
+                            document_id=document_id,
+                            cell_id=inserted_cell_id
                         )
 
                         return {

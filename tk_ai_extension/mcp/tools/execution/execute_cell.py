@@ -3,11 +3,14 @@
 
 """MCP tool for executing notebook cells."""
 
+import logging
 import nbformat
 from pathlib import Path
 from typing import Any, Optional, Dict, List
 from ..base import BaseTool
 from ..utils import get_jupyter_ydoc, get_notebook_path, execute_code_with_timeout
+
+logger = logging.getLogger(__name__)
 
 
 class ExecuteCellTool(BaseTool):
@@ -79,6 +82,8 @@ class ExecuteCellTool(BaseTool):
         kernel_id = kwargs.get("kernel_id")
         timeout_seconds = kwargs.get("timeout_seconds", 300)
 
+        logger.info(f"ExecuteCellTool.execute called: notebook_path={notebook_path}, cell_index={cell_index}, kernel_id={kernel_id}")
+
         if not notebook_path or cell_index is None or not kernel_id:
             return {
                 "error": "notebook_path, cell_index, and kernel_id are required",
@@ -128,16 +133,28 @@ class ExecuteCellTool(BaseTool):
                                 "success": False
                             }
 
-                        # Get cell source
+                        # Get cell source and ID
                         source_raw = ycell.get("source", "")
                         if isinstance(source_raw, list):
                             cell_source = "".join(source_raw)
                         else:
                             cell_source = str(source_raw)
 
-                        # Execute code
+                        # Get cell ID for RTC integration
+                        ycell_id = ycell.get("id")
+
+                        # Construct document_id for RTC integration
+                        document_id = f"json:notebook:{file_id}"
+
+                        # Execute code with RTC metadata
                         outputs = await execute_code_with_timeout(
-                            kernel_manager, kernel_id, cell_source, timeout_seconds, serverapp=serverapp
+                            kernel_manager,
+                            kernel_id,
+                            cell_source,
+                            timeout_seconds,
+                            serverapp=serverapp,
+                            document_id=document_id,
+                            cell_id=ycell_id
                         )
 
                         return {

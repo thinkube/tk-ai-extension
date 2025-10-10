@@ -300,6 +300,7 @@ class MCPChatHandler(JupyterHandler):
             client = await client_manager.get_or_create_client(notebook_path, options)
 
             # Execute query with persistent client (maintains conversation history)
+            self.log.info(f"[USER MESSAGE] {user_message}")
             self.log.info("Sending query to existing Claude session...")
             response_text = ""
             await client.query(user_message)
@@ -311,6 +312,7 @@ class MCPChatHandler(JupyterHandler):
                     for block in message.content:
                         if isinstance(block, TextBlock):
                             response_text += block.text
+            self.log.info(f"[CLAUDE RESPONSE] {response_text[:500]}...")  # Log first 500 chars
             self.log.info(f"Response received: {len(response_text)} chars")
 
             # Save conversation to notebook metadata
