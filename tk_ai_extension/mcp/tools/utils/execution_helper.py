@@ -234,21 +234,15 @@ async def execute_code_with_timeout(
     """
     # Try ExecutionStack first if serverapp is available
     if serverapp is not None:
-        try:
-            return await execute_via_execution_stack(
-                serverapp=serverapp,
-                kernel_id=kernel_id,
-                code=code,
-                timeout=timeout_seconds
-            )
-        except RuntimeError as e:
-            logger.warning(f"ExecutionStack not available, falling back to legacy method: {e}")
-            # Fall through to legacy method
-        except Exception as e:
-            logger.error(f"ExecutionStack failed, falling back to legacy method: {e}")
-            # Fall through to legacy method
+        return await execute_via_execution_stack(
+            serverapp=serverapp,
+            kernel_id=kernel_id,
+            code=code,
+            timeout=timeout_seconds
+        )
 
     # Legacy blocking method (DEPRECATED - causes 300s timeout issues)
+    # This should only be used if serverapp is None
     if not code or not code.strip():
         return ["[Empty code]"]
 

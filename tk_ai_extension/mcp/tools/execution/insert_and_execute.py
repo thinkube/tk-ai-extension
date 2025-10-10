@@ -140,7 +140,7 @@ class InsertAndExecuteCellTool(BaseTool):
 
                         # Execute the cell
                         outputs = await execute_code_with_timeout(
-                            kernel_manager, kernel_id, code, timeout_seconds
+                            kernel_manager, kernel_id, code, timeout_seconds, serverapp=serverapp
                         )
 
                         return {
@@ -170,7 +170,7 @@ class InsertAndExecuteCellTool(BaseTool):
 
             # Execute the cell
             outputs = await execute_code_with_timeout(
-                kernel_manager, kernel_id, code, timeout_seconds
+                kernel_manager, kernel_id, code, timeout_seconds, serverapp=serverapp
             )
 
             return {

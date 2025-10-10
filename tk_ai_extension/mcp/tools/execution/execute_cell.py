@@ -137,7 +137,7 @@ class ExecuteCellTool(BaseTool):
 
                         # Execute code
                         outputs = await execute_code_with_timeout(
-                            kernel_manager, kernel_id, cell_source, timeout_seconds
+                            kernel_manager, kernel_id, cell_source, timeout_seconds, serverapp=serverapp
                         )
 
                         return {
@@ -165,7 +165,7 @@ class ExecuteCellTool(BaseTool):
 
             # Execute code
             outputs = await execute_code_with_timeout(
-                kernel_manager, kernel_id, cell.source, timeout_seconds
+                kernel_manager, kernel_id, cell.source, timeout_seconds, serverapp=serverapp
             )
 
             return {
