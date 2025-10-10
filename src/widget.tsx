@@ -17,8 +17,10 @@ import { ChatPanel } from './components/ChatPanel';
 export class ChatWidget extends ReactWidget {
   private client: MCPClient;
   private labShell: JupyterFrontEnd.IShell | null;
+  private currentNotebookPath: string | null = null;
+  private chatPanelRef: React.RefObject<any>;
 
-  constructor(labShell: JupyterFrontEnd.IShell | null = null) {
+  constructor(labShell: JupyterFrontEnd.IShell | null = null, initialNotebookPath: string | null = null) {
     super();
     this.id = 'tk-ai-chat';
     this.title.label = 'tk-ai Chat';
@@ -27,12 +29,44 @@ export class ChatWidget extends ReactWidget {
 
     this.client = new MCPClient();
     this.labShell = labShell;
+    this.currentNotebookPath = initialNotebookPath;
+    this.chatPanelRef = React.createRef();
 
-    // Listen to shell changes to update notebook path
-    if (this.labShell) {
-      this.labShell.currentChanged?.connect(() => {
-        this.update();
-      });
+    // Connect to notebook if initial path provided
+    if (initialNotebookPath) {
+      this.updateNotebookContext(initialNotebookPath);
+    }
+  }
+
+  /**
+   * Update the notebook context (connect to new notebook and load conversation)
+   */
+  async updateNotebookContext(notebookPath: string): Promise<void> {
+    if (this.currentNotebookPath === notebookPath) {
+      console.log(`Already connected to ${notebookPath}`);
+      return;
+    }
+
+    console.log(`Switching notebook context: ${this.currentNotebookPath} → ${notebookPath}`);
+    this.currentNotebookPath = notebookPath;
+
+    try {
+      // Connect to notebook and load conversation history
+      const result = await this.client.connectNotebook(notebookPath);
+      console.log(`Connected to ${result.notebook_name}, loaded ${result.messages.length} messages`);
+
+      // Update the ChatPanel with new context and messages
+      this.update();
+
+      // Trigger conversation restore in ChatPanel
+      if (this.chatPanelRef.current && this.chatPanelRef.current.restoreConversation) {
+        this.chatPanelRef.current.restoreConversation(
+          result.notebook_name,
+          result.messages
+        );
+      }
+    } catch (error) {
+      console.error('Failed to update notebook context:', error);
     }
   }
 
@@ -59,7 +93,14 @@ export class ChatWidget extends ReactWidget {
   }
 
   render(): JSX.Element {
-    const notebookPath = this.getCurrentNotebookPath();
-    return <ChatPanel client={this.client} notebookPath={notebookPath} labShell={this.labShell} />;
+    const notebookPath = this.currentNotebookPath || this.getCurrentNotebookPath();
+    return (
+      <ChatPanel
+        ref={this.chatPanelRef}
+        client={this.client}
+        notebookPath={notebookPath}
+        labShell={this.labShell}
+      />
+    );
   }
 }

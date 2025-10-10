@@ -282,7 +282,13 @@ class MCPChatHandler(JupyterHandler):
                 env=os.environ.copy()  # Pass all environment variables including auth token
             )
 
-            # Get or create persistent Claude client
+            # Require notebook_path for per-notebook sessions
+            if not notebook_path:
+                self.set_status(400)
+                self.finish({"error": "notebook_path parameter is required"})
+                return
+
+            # Get or create persistent Claude client for this notebook
             client_manager = self.settings.get('claude_client_manager')
             if not client_manager:
                 self.log.error("Claude client manager not initialized!")
@@ -290,8 +296,8 @@ class MCPChatHandler(JupyterHandler):
                 self.finish({"error": "Server configuration error"})
                 return
 
-            self.log.info("Getting Claude client...")
-            client = await client_manager.get_or_create_client(options)
+            self.log.info(f"Getting Claude client for notebook: {notebook_path}...")
+            client = await client_manager.get_or_create_client(notebook_path, options)
 
             # Execute query with persistent client (maintains conversation history)
             self.log.info("Sending query to existing Claude session...")
@@ -307,6 +313,26 @@ class MCPChatHandler(JupyterHandler):
                             response_text += block.text
             self.log.info(f"Response received: {len(response_text)} chars")
 
+            # Save conversation to notebook metadata
+            try:
+                from .conversation_persistence import save_conversation_to_notebook, load_conversation_from_notebook
+
+                # Load existing conversation
+                existing_messages = load_conversation_from_notebook(notebook_path)
+
+                # Append new exchange
+                updated_messages = existing_messages + [
+                    {"role": "user", "content": user_message},
+                    {"role": "assistant", "content": response_text}
+                ]
+
+                # Save back to notebook
+                save_conversation_to_notebook(notebook_path, updated_messages)
+                self.log.info(f"Conversation saved to {notebook_path}")
+            except Exception as e:
+                self.log.warning(f"Failed to save conversation: {e}")
+                # Don't fail the request if saving fails
+
             self.finish({
                 "response": response_text,
                 "timestamp": body.get('timestamp', None)
@@ -317,5 +343,143 @@ class MCPChatHandler(JupyterHandler):
             self.finish({"error": "Invalid JSON in request body"})
         except Exception as e:
             self.log.error(f"Error in chat: {e}")
+            self.set_status(500)
+            self.finish({"error": str(e)})
+
+
+class SessionCloseHandler(JupyterHandler):
+    """Close Claude session for a notebook."""
+
+    @web.authenticated
+    async def post(self):
+        """POST /api/tk-ai/mcp/session/close
+
+        Body:
+        {
+            "notebook_path": "path/to/notebook.ipynb"
+        }
+        """
+        try:
+            body = json.loads(self.request.body.decode('utf-8'))
+            notebook_path = body.get('notebook_path')
+
+            if not notebook_path:
+                self.set_status(400)
+                self.finish({"error": "notebook_path parameter is required"})
+                return
+
+            # Get client manager
+            client_manager = self.settings.get('claude_client_manager')
+            if not client_manager:
+                self.set_status(500)
+                self.finish({"error": "Server configuration error"})
+                return
+
+            # Close the client for this notebook
+            await client_manager.close_client(notebook_path)
+            self.log.info(f"Closed session for notebook: {notebook_path}")
+
+            self.finish({"success": True})
+
+        except json.JSONDecodeError:
+            self.set_status(400)
+            self.finish({"error": "Invalid JSON in request body"})
+        except Exception as e:
+            self.log.error(f"Error closing session: {e}")
+            self.set_status(500)
+            self.finish({"error": str(e)})
+
+
+class NotebookConnectHandler(JupyterHandler):
+    """Connect to a notebook and load conversation history."""
+
+    @web.authenticated
+    async def post(self):
+        """POST /api/tk-ai/mcp/notebook/connect
+
+        Body:
+        {
+            "notebook_path": "path/to/notebook.ipynb"
+        }
+
+        Returns:
+        {
+            "success": true,
+            "notebook_name": "notebook",
+            "messages": [{"role": "user"|"assistant", "content": "..."}],
+            "kernel_id": "..."
+        }
+        """
+        try:
+            body = json.loads(self.request.body.decode('utf-8'))
+            notebook_path = body.get('notebook_path')
+
+            if not notebook_path:
+                self.set_status(400)
+                self.finish({"error": "notebook_path parameter is required"})
+                return
+
+            # Get notebook manager
+            notebook_manager = self.settings.get('notebook_manager')
+            if not notebook_manager:
+                self.set_status(500)
+                self.finish({"error": "Server configuration error"})
+                return
+
+            # Extract notebook name from path
+            from .conversation_persistence import get_notebook_name, load_conversation_from_notebook
+
+            notebook_name = get_notebook_name(notebook_path)
+
+            # Check if notebook is already connected
+            if notebook_name in notebook_manager:
+                kernel_id = notebook_manager.get_kernel_id(notebook_name)
+                self.log.info(f"Notebook {notebook_name} already connected, kernel: {kernel_id}")
+            else:
+                # Use the use_notebook tool to connect
+                from .agent.tools_registry import get_registered_tools
+
+                tools = get_registered_tools()
+                if 'use_notebook' not in tools:
+                    self.set_status(500)
+                    self.finish({"error": "use_notebook tool not available"})
+                    return
+
+                # Execute use_notebook tool
+                use_notebook_executor = tools['use_notebook']['executor']
+                result = await use_notebook_executor({
+                    "notebook_name": notebook_name,
+                    "notebook_path": notebook_path,
+                    "mode": "connect"
+                })
+
+                # Check if connection was successful
+                if "error" in str(result).lower() or "not found" in str(result).lower():
+                    self.set_status(400)
+                    self.finish({
+                        "error": f"Failed to connect to notebook: {result}",
+                        "success": False
+                    })
+                    return
+
+                kernel_id = notebook_manager.get_kernel_id(notebook_name)
+                self.log.info(f"Connected to notebook {notebook_name}, kernel: {kernel_id}")
+
+            # Load conversation history from notebook metadata
+            messages = load_conversation_from_notebook(notebook_path)
+            self.log.info(f"Loaded {len(messages)} messages from {notebook_name}")
+
+            self.finish({
+                "success": True,
+                "notebook_name": notebook_name,
+                "messages": messages,
+                "kernel_id": kernel_id
+            })
+
+        except json.JSONDecodeError:
+            self.set_status(400)
+            self.finish({"error": "Invalid JSON in request body"})
+        except Exception as e:
+            self.log.error(f"Error connecting to notebook: {e}")
             self.set_status(500)
             self.finish({"error": str(e)})

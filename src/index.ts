@@ -13,8 +13,13 @@ import {
 import { ISettingRegistry } from '@jupyterlab/settingregistry';
 import { ICommandPalette } from '@jupyterlab/apputils';
 import { ILauncher } from '@jupyterlab/launcher';
+import { INotebookTracker, NotebookPanel } from '@jupyterlab/notebook';
+import { DocumentRegistry } from '@jupyterlab/docregistry';
+import { IDisposable } from '@lumino/disposable';
+import { ToolbarButton } from '@jupyterlab/apputils';
 
 import { ChatWidget } from './widget';
+import { MCPClient } from './api';
 
 /**
  * The command IDs
@@ -24,25 +29,99 @@ const CommandIDs = {
 };
 
 /**
+ * Toolbar button extension for notebooks
+ */
+class ThinkyButtonExtension
+  implements DocumentRegistry.IWidgetExtension<NotebookPanel, DocumentRegistry.IModel>
+{
+  constructor(private app: JupyterFrontEnd, private widget: ChatWidget | null) {}
+
+  createNew(
+    panel: NotebookPanel,
+    context: DocumentRegistry.IContext<DocumentRegistry.IModel>
+  ): IDisposable {
+    const button = new ToolbarButton({
+      label: '🤖 Thinky',
+      onClick: async () => {
+        const notebookPath = context.path;
+        console.log(`Thinky button clicked for: ${notebookPath}`);
+
+        // Open or focus Thinky widget
+        if (!this.widget || this.widget.isDisposed) {
+          this.widget = new ChatWidget(this.app.shell, notebookPath);
+          this.widget.id = 'tk-ai-chat';
+          this.widget.title.label = 'tk-ai Chat';
+          this.widget.title.closable = true;
+        } else {
+          // Update context for existing widget
+          await this.widget.updateNotebookContext(notebookPath);
+        }
+
+        if (!this.widget.isAttached) {
+          this.app.shell.add(this.widget, 'right', { rank: 500 });
+        }
+
+        this.app.shell.activateById(this.widget.id);
+      },
+      tooltip: 'Open Thinky AI Assistant for this notebook'
+    });
+
+    panel.toolbar.insertAfter('cellType', 'thinky-button', button);
+    return button;
+  }
+}
+
+/**
  * Initialization data for the tk-ai-extension extension.
  */
 const plugin: JupyterFrontEndPlugin<void> = {
   id: 'tk-ai-extension:plugin',
   description: 'AI assistant extension for tk-ai lab (Thinkube JupyterHub)',
   autoStart: true,
-  optional: [ISettingRegistry, ICommandPalette, ILauncher],
+  optional: [ISettingRegistry, ICommandPalette, ILauncher, INotebookTracker],
   activate: (
     app: JupyterFrontEnd,
     settingRegistry: ISettingRegistry | null,
     palette: ICommandPalette | null,
-    launcher: ILauncher | null
+    launcher: ILauncher | null,
+    notebookTracker: INotebookTracker | null
   ) => {
     console.log('JupyterLab extension tk-ai-extension is activated!');
 
-    // Create a single widget instance
-    let widget: ChatWidget;
+    // Create a single widget instance (shared across all notebooks)
+    let widget: ChatWidget | null = null;
+    const client = new MCPClient();
 
-    // Command to open chat
+    // Add toolbar button to all notebook panels
+    if (notebookTracker) {
+      const buttonExtension = new ThinkyButtonExtension(app, widget);
+      app.docRegistry.addWidgetExtension('Notebook', buttonExtension);
+      console.log('tk-ai-extension: Toolbar button added to notebooks');
+
+      // Auto-detect notebook changes and update widget context
+      notebookTracker.currentChanged.connect((tracker, notebookPanel) => {
+        if (notebookPanel && widget && !widget.isDisposed && widget.isAttached) {
+          const notebookPath = notebookPanel.context.path;
+          console.log(`Notebook changed to: ${notebookPath}`);
+          widget.updateNotebookContext(notebookPath);
+        }
+      });
+
+      // Cleanup sessions when notebooks are closed
+      notebookTracker.widgetRemoved.connect((tracker, notebookPanel) => {
+        const notebookPath = notebookPanel.context.path;
+        console.log(`Notebook closed: ${notebookPath}, closing Claude session`);
+
+        // Fire-and-forget cleanup
+        client.closeSession(notebookPath).catch(err => {
+          console.error('Failed to close session:', err);
+        });
+      });
+
+      console.log('tk-ai-extension: Notebook tracking enabled');
+    }
+
+    // Command to open chat (keep for programmatic access)
     app.commands.addCommand(CommandIDs.openChat, {
       label: 'Open tk-ai Chat',
       caption: 'Open the tk-ai chat interface',
@@ -62,15 +141,7 @@ const plugin: JupyterFrontEndPlugin<void> = {
       }
     });
 
-    // Add to command palette
-    if (palette) {
-      palette.addItem({
-        command: CommandIDs.openChat,
-        category: 'tk-ai'
-      });
-    }
-
-    // Add to launcher
+    // Add to launcher (keep for users who want to open without a notebook)
     if (launcher) {
       launcher.add({
         command: CommandIDs.openChat,

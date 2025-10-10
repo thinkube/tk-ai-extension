@@ -178,4 +178,65 @@ export class MCPClient {
     const data = await response.json();
     return data.response;
   }
+
+  /**
+   * Connect to a notebook and load conversation history
+   */
+  async connectNotebook(notebookPath: string): Promise<{
+    success: boolean;
+    notebook_name: string;
+    messages: IChatMessage[];
+    kernel_id: string;
+  }> {
+    const url = URLExt.join(this.baseUrl, 'notebook', 'connect');
+    const response = await ServerConnection.makeRequest(
+      url,
+      {
+        method: 'POST',
+        body: JSON.stringify({ notebook_path: notebookPath })
+      },
+      this.serverSettings
+    );
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || `Failed to connect to notebook: ${response.statusText}`);
+    }
+
+    const data = await response.json();
+
+    // Convert message timestamps from strings to Date objects
+    const messages = data.messages.map((msg: any) => ({
+      role: msg.role,
+      content: msg.content,
+      timestamp: msg.timestamp ? new Date(msg.timestamp) : new Date()
+    }));
+
+    return {
+      success: data.success,
+      notebook_name: data.notebook_name,
+      messages: messages,
+      kernel_id: data.kernel_id
+    };
+  }
+
+  /**
+   * Close Claude session for a notebook
+   */
+  async closeSession(notebookPath: string): Promise<void> {
+    const url = URLExt.join(this.baseUrl, 'session', 'close');
+    const response = await ServerConnection.makeRequest(
+      url,
+      {
+        method: 'POST',
+        body: JSON.stringify({ notebook_path: notebookPath })
+      },
+      this.serverSettings
+    );
+
+    if (!response.ok) {
+      console.error('Failed to close session:', response.statusText);
+      // Don't throw - this is fire-and-forget cleanup
+    }
+  }
 }

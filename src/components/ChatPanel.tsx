@@ -23,7 +23,7 @@ export interface IChatPanelProps {
  * Chat Panel Component
  * Provides a chat interface for interacting with Claude AI
  */
-export const ChatPanel: React.FC<IChatPanelProps> = ({ client, notebookPath, labShell }) => {
+export const ChatPanel = React.forwardRef<any, IChatPanelProps>(({ client, notebookPath, labShell }, ref) => {
   /**
    * Get the currently active notebook path at the time of sending a message
    */
@@ -50,7 +50,20 @@ export const ChatPanel: React.FC<IChatPanelProps> = ({ client, notebookPath, lab
   const [isLoading, setIsLoading] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
   const [isModelConnected, setIsModelConnected] = useState(false);
+  const [connectedNotebook, setConnectedNotebook] = useState<string | null>(null);
+  const [isRestoring, setIsRestoring] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // Expose restoreConversation method via ref
+  React.useImperativeHandle(ref, () => ({
+    restoreConversation: (notebookName: string, restoredMessages: IChatMessage[]) => {
+      console.log(`Restoring conversation for ${notebookName}: ${restoredMessages.length} messages`);
+      setIsRestoring(true);
+      setConnectedNotebook(notebookName);
+      setMessages(restoredMessages);
+      setTimeout(() => setIsRestoring(false), 500); // Brief restore indicator
+    }
+  }));
 
   // Check connection on mount
   useEffect(() => {
@@ -176,6 +189,15 @@ export const ChatPanel: React.FC<IChatPanelProps> = ({ client, notebookPath, lab
 
   return (
     <div className="tk-chat-panel">
+      {/* Notebook name display */}
+      {connectedNotebook && (
+        <div className="tk-notebook-navbar">
+          <span className="tk-notebook-icon">📓</span>
+          <span className="tk-notebook-name">{connectedNotebook}</span>
+          {isRestoring && <span className="tk-notebook-restoring">(restoring...)</span>}
+        </div>
+      )}
+
       {/* Connection status */}
       <div className="tk-connection-status">
         <div className={`tk-status-item ${isConnected ? 'connected' : 'disconnected'}`}>
@@ -242,4 +264,4 @@ export const ChatPanel: React.FC<IChatPanelProps> = ({ client, notebookPath, lab
       </div>
     </div>
   );
-};
+});
