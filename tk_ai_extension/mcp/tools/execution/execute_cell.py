@@ -4,11 +4,11 @@
 """MCP tool for executing notebook cells."""
 
 import logging
-import nbformat
 from pathlib import Path
 from typing import Any, Optional, Dict, List
+from jupyter_nbmodel_client import NbModelClient
 from ..base import BaseTool
-from ..utils import get_jupyter_ydoc, get_notebook_path, execute_code_with_timeout
+from ..utils import get_notebook_path
 
 logger = logging.getLogger(__name__)
 
@@ -60,7 +60,7 @@ class ExecuteCellTool(BaseTool):
         serverapp: Optional[Any] = None,
         **kwargs
     ) -> Dict[str, Any]:
-        """Execute a cell.
+        """Execute a cell using NbModelClient as collaborative WebSocket client.
 
         Args:
             contents_manager: Jupyter contents manager
@@ -82,7 +82,11 @@ class ExecuteCellTool(BaseTool):
         kernel_id = kwargs.get("kernel_id")
         timeout_seconds = kwargs.get("timeout_seconds", 300)
 
-        logger.info(f"ExecuteCellTool.execute called: notebook_path={notebook_path}, cell_index={cell_index}, kernel_id={kernel_id}")
+        if not serverapp:
+            serverapp = getattr(contents_manager, 'parent', None)
+
+        if serverapp:
+            serverapp.log.info(f"ExecuteCellTool.execute called: notebook_path={notebook_path}, cell_index={cell_index}, kernel_id={kernel_id}")
 
         if not notebook_path or cell_index is None or not kernel_id:
             return {
@@ -91,101 +95,36 @@ class ExecuteCellTool(BaseTool):
             }
 
         try:
-            # Get absolute path
-            serverapp = getattr(contents_manager, 'parent', None)
+            # Get absolute path and file_id
             abs_path = get_notebook_path(serverapp, notebook_path)
+            file_id_manager = serverapp.web_app.settings.get("file_id_manager")
+            file_id = file_id_manager.get_id(abs_path)
 
-            # Check if kernel exists
-            kernels = list(kernel_manager.list_kernels())
-            if not any(k['id'] == kernel_id for k in kernels):
+            # Construct WebSocket URL for collaborative room
+            base_url = f"http://127.0.0.1:{serverapp.port}"
+            ws_url = base_url.replace("http://", "ws://")
+            ws_url = f"{ws_url}/api/collaboration/room/json:notebook:{file_id}"
+
+            serverapp.log.info(f"Connecting to notebook via WebSocket: {ws_url}")
+
+            # Connect as collaborative client and execute
+            async with NbModelClient(ws_url) as nb_client:
+                serverapp.log.info("Connected to notebook as collaborative WebSocket client")
+
+                # Execute the cell - this will automatically sync via RTC
+                result = await nb_client.execute_cell(cell_index, kernel_id, timeout=timeout_seconds)
+
+                serverapp.log.info(f"Cell executed via NbModelClient, outputs will sync via RTC")
+
                 return {
-                    "error": f"Kernel '{kernel_id}' not found",
-                    "success": False
+                    "success": True,
+                    "cell_index": cell_index,
+                    "outputs": result.get("outputs", []) if isinstance(result, dict) else []
                 }
-
-            # Get file_id for YDoc lookup
-            if serverapp:
-                file_id_manager = serverapp.web_app.settings.get("file_id_manager")
-                if file_id_manager:
-                    file_id = file_id_manager.get_id(abs_path)
-                    ydoc = await get_jupyter_ydoc(serverapp, file_id)
-
-                    if ydoc:
-                        # Use YDoc for collaborative editing
-                        if cell_index < 0 or cell_index >= len(ydoc.ycells):
-                            return {
-                                "error": f"Cell index {cell_index} out of range. Notebook has {len(ydoc.ycells)} cells",
-                                "success": False
-                            }
-
-                        ycell = ydoc.ycells[cell_index]
-                        if ycell.get("cell_type") != "code":
-                            return {
-                                "error": f"Cell {cell_index} is not a code cell",
-                                "success": False
-                            }
-
-                        # Get cell source and ID
-                        source_raw = ycell.get("source", "")
-                        if isinstance(source_raw, list):
-                            cell_source = "".join(source_raw)
-                        else:
-                            cell_source = str(source_raw)
-
-                        # Get cell ID for RTC integration
-                        ycell_id = ycell.get("id")
-
-                        # Construct document_id for RTC integration
-                        document_id = f"json:notebook:{file_id}"
-
-                        # Execute code with RTC metadata
-                        # ExecutionStack with document_id and cell_id will automatically
-                        # update the YDoc through jupyter-collaboration
-                        outputs = await execute_code_with_timeout(
-                            kernel_manager,
-                            kernel_id,
-                            cell_source,
-                            timeout_seconds,
-                            serverapp=serverapp,
-                            document_id=document_id,
-                            cell_id=ycell_id
-                        )
-
-                        return {
-                            "success": True,
-                            "cell_index": cell_index,
-                            "outputs": outputs
-                        }
-
-            # Fallback to file operations
-            with open(abs_path, 'r', encoding='utf-8') as f:
-                notebook = nbformat.read(f, as_version=4)
-
-            if cell_index < 0 or cell_index >= len(notebook.cells):
-                return {
-                    "error": f"Cell index {cell_index} out of range. Notebook has {len(notebook.cells)} cells",
-                    "success": False
-                }
-
-            cell = notebook.cells[cell_index]
-            if cell.cell_type != 'code':
-                return {
-                    "error": f"Cell {cell_index} is not a code cell (type: {cell.cell_type})",
-                    "success": False
-                }
-
-            # Execute code
-            outputs = await execute_code_with_timeout(
-                kernel_manager, kernel_id, cell.source, timeout_seconds, serverapp=serverapp
-            )
-
-            return {
-                "success": True,
-                "cell_index": cell_index,
-                "outputs": outputs
-            }
 
         except Exception as e:
+            if serverapp:
+                serverapp.log.error(f"Error executing cell via NbModelClient: {e}")
             return {
                 "success": False,
                 "error": str(e),
