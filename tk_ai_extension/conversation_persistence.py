@@ -27,7 +27,14 @@ def save_conversation_to_notebook(notebook_path: str, messages: List[Dict[str, A
 
         # Handle relative paths (assume from /home/jovyan/thinkube/notebooks)
         if not nb_path.is_absolute():
-            nb_path = Path.home() / 'thinkube' / 'notebooks' / notebook_path
+            # Check if path already contains thinkube/notebooks prefix
+            path_str = str(notebook_path)
+            if path_str.startswith('thinkube/notebooks/'):
+                # Path already includes the prefix, just prepend home
+                nb_path = Path.home() / path_str
+            else:
+                # Path needs full prefix
+                nb_path = Path.home() / 'thinkube' / 'notebooks' / notebook_path
 
         if not nb_path.exists():
             logger.error(f"Notebook not found: {nb_path}")
@@ -78,7 +85,14 @@ def load_conversation_from_notebook(notebook_path: str) -> List[Dict[str, Any]]:
 
         # Handle relative paths
         if not nb_path.is_absolute():
-            nb_path = Path.home() / 'thinkube' / 'notebooks' / notebook_path
+            # Check if path already contains thinkube/notebooks prefix
+            path_str = str(notebook_path)
+            if path_str.startswith('thinkube/notebooks/'):
+                # Path already includes the prefix, just prepend home
+                nb_path = Path.home() / path_str
+            else:
+                # Path needs full prefix
+                nb_path = Path.home() / 'thinkube' / 'notebooks' / notebook_path
 
         if not nb_path.exists():
             logger.warning(f"Notebook not found: {nb_path}")
@@ -119,7 +133,14 @@ def clear_conversation(notebook_path: str) -> bool:
 
         # Handle relative paths
         if not nb_path.is_absolute():
-            nb_path = Path.home() / 'thinkube' / 'notebooks' / notebook_path
+            # Check if path already contains thinkube/notebooks prefix
+            path_str = str(notebook_path)
+            if path_str.startswith('thinkube/notebooks/'):
+                # Path already includes the prefix, just prepend home
+                nb_path = Path.home() / path_str
+            else:
+                # Path needs full prefix
+                nb_path = Path.home() / 'thinkube' / 'notebooks' / notebook_path
 
         if not nb_path.exists():
             logger.error(f"Notebook not found: {nb_path}")
