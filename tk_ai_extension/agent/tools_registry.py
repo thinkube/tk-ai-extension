@@ -53,6 +53,9 @@ def register_tool(tool_instance):
                 **args
             )
 
+            if serverapp:
+                serverapp.log.info(f"[TOOL RESULT] {tool_instance.name} returned: {result}")
+
             return {
                 "content": [
                     {
