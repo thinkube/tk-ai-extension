@@ -157,9 +157,30 @@ class ExecuteCellTool(BaseTool):
                             cell_id=ycell_id
                         )
 
+                        # CRITICAL: Write outputs back to YDoc for jupyter-collaboration to sync to UI
+                        # Get current execution count from notebook
+                        current_execution_count = ydoc.get("execution_count", 0)
+                        new_execution_count = current_execution_count + 1
+
+                        # Update YDoc execution count
+                        ydoc.set("execution_count", new_execution_count)
+
+                        # Update cell with execution results
+                        ycell["execution_count"] = new_execution_count
+                        # Convert string outputs to nbformat output structure
+                        ycell["outputs"] = []
+                        for output_text in outputs:
+                            if output_text and output_text != "[No output generated]":
+                                ycell["outputs"].append({
+                                    "output_type": "stream",
+                                    "name": "stdout",
+                                    "text": output_text
+                                })
+
                         return {
                             "success": True,
                             "cell_index": cell_index,
+                            "execution_count": new_execution_count,
                             "outputs": outputs
                         }
 
