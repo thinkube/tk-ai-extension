@@ -10,7 +10,7 @@ import { marked } from 'marked';
 // Configure marked for safe rendering
 // Valid options: async, breaks, gfm, pedantic, renderer, silent, tokenizer, walkTokens
 marked.setOptions({
-  breaks: true, // Enable line breaks
+  breaks: false, // Disable automatic line breaks to reduce blank lines
   gfm: true // GitHub Flavored Markdown
 });
 

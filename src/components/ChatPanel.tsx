@@ -72,7 +72,7 @@ export const ChatPanel: React.FC<IChatPanelProps> = ({ client, notebookPath, lab
           content:
             '⚠️ Cannot connect to MCP server. Please make sure:\n' +
             '1. tk-ai-extension is properly installed\n' +
-            '2. JupyterLab server is running\n' +
+            '2. Tk-ai Lab server is running\n' +
             '3. API key is configured (ANTHROPIC_API_KEY)',
           timestamp: new Date()
         }
@@ -82,13 +82,17 @@ export const ChatPanel: React.FC<IChatPanelProps> = ({ client, notebookPath, lab
         {
           role: 'assistant',
           content:
-            'Hello! I\'m Claude, integrated with your Jupyter notebooks.\n\n' +
-            'I can help you with:\n' +
-            '• Listing and analyzing notebooks\n' +
-            '• Reading and explaining code cells\n' +
-            '• Finding specific code patterns\n' +
-            '• Checking kernel status\n\n' +
-            'Try asking: "List all notebooks in the current directory"',
+            'Hello! I\'m Thinky, your Tk-ai Lab notebook assistant.\n\n' +
+            '**To get started:**\n' +
+            '1. Tell me which notebook you want to work with\n' +
+            '2. I\'ll connect to it and start a kernel\n' +
+            '3. Then I can execute cells, modify code, and analyze your work!\n\n' +
+            'Try: "Use the notebook Untitled2.ipynb"\n\n' +
+            '**I can help you:**\n' +
+            '• Connect to notebooks and manage kernels\n' +
+            '• Execute and modify cells\n' +
+            '• Analyze code and find patterns\n' +
+            '• Debug errors and suggest improvements',
           timestamp: new Date()
         }
       ]);
@@ -164,7 +168,7 @@ export const ChatPanel: React.FC<IChatPanelProps> = ({ client, notebookPath, lab
           <div key={idx} className={`tk-message tk-message-${msg.role}`}>
             <div className="tk-message-header">
               <span className="tk-message-role">
-                {msg.role === 'user' ? '👤 You' : '🤖 Claude'}
+                {msg.role === 'user' ? '👤 You' : '🤖 Thinky'}
               </span>
               <span className="tk-message-time">
                 {formatTimestamp(msg.timestamp)}
@@ -179,7 +183,7 @@ export const ChatPanel: React.FC<IChatPanelProps> = ({ client, notebookPath, lab
         {isLoading && (
           <div className="tk-message tk-message-assistant">
             <div className="tk-message-header">
-              <span className="tk-message-role">🤖 Claude</span>
+              <span className="tk-message-role">🤖 Thinky</span>
             </div>
             <div className="tk-message-content tk-loading">
               <span className="tk-loading-dot"></span>
@@ -198,7 +202,7 @@ export const ChatPanel: React.FC<IChatPanelProps> = ({ client, notebookPath, lab
           value={inputValue}
           onChange={e => setInputValue(e.target.value)}
           onKeyPress={handleKeyPress}
-          placeholder="Ask Claude about your notebooks..."
+          placeholder="Ask Thinky about your notebooks..."
           disabled={!isConnected || isLoading}
           rows={3}
         />

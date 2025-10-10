@@ -153,6 +153,54 @@
   border: 1px solid var(--tk-border);
 }
 
+/* Markdown content styling - reduce excessive spacing */
+.tk-message-content p {
+  margin: 0.5em 0;
+}
+
+.tk-message-content p:first-child {
+  margin-top: 0;
+}
+
+.tk-message-content p:last-child {
+  margin-bottom: 0;
+}
+
+.tk-message-content ul,
+.tk-message-content ol {
+  margin: 0.5em 0;
+  padding-left: 1.5em;
+}
+
+.tk-message-content code {
+  background-color: rgba(0, 0, 0, 0.05);
+  padding: 0.2em 0.4em;
+  border-radius: 3px;
+  font-family: monospace;
+}
+
+.tk-message-content pre {
+  background-color: rgba(0, 0, 0, 0.05);
+  padding: 0.8em;
+  border-radius: 6px;
+  overflow-x: auto;
+  margin: 0.5em 0;
+}
+
+.tk-message-content pre code {
+  background: none;
+  padding: 0;
+}
+
+/* Dark theme support for markdown */
+[data-jp-theme-light='false'] .tk-message-content code {
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
+[data-jp-theme-light='false'] .tk-message-content pre {
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
 /* Loading Animation */
 .tk-loading {
   display: flex;
