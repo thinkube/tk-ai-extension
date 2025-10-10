@@ -140,8 +140,8 @@ export const ChatPanel: React.FC<IChatPanelProps> = ({ client, notebookPath, lab
       const activeNotebookPath = getCurrentNotebookPath();
       const response = await client.sendMessage(inputValue, activeNotebookPath);
 
-      // Collapse multiple consecutive newlines to reduce blank lines
-      const cleanedResponse = response.replace(/\n\n+/g, '\n\n');
+      // Replace double newlines with single newlines and trim trailing newlines
+      const cleanedResponse = response.replace(/\n\n+/g, '\n').replace(/\n+$/, '');
 
       const assistantMessage: IChatMessage = {
         role: 'assistant',
