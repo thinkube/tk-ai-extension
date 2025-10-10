@@ -79,6 +79,30 @@ export class MCPClient {
   }
 
   /**
+   * Check if AI model (Claude) is accessible
+   */
+  async checkModelHealth(): Promise<boolean> {
+    try {
+      const url = URLExt.join(this.baseUrl, 'model-health');
+      const response = await ServerConnection.makeRequest(
+        url,
+        {},
+        this.serverSettings
+      );
+
+      if (!response.ok) {
+        return false;
+      }
+
+      const data = await response.json();
+      return data.model_available === true;
+    } catch (error) {
+      console.error('Model health check failed:', error);
+      return false;
+    }
+  }
+
+  /**
    * List available tools
    */
   async listTools(): Promise<ITool[]> {

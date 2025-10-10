@@ -49,6 +49,7 @@ export const ChatPanel: React.FC<IChatPanelProps> = ({ client, notebookPath, lab
   const [inputValue, setInputValue] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
+  const [isModelConnected, setIsModelConnected] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // Check connection on mount
@@ -62,10 +63,13 @@ export const ChatPanel: React.FC<IChatPanelProps> = ({ client, notebookPath, lab
   }, [messages]);
 
   const checkConnection = async () => {
-    const healthy = await client.checkHealth();
-    setIsConnected(healthy);
+    const mcpHealthy = await client.checkHealth();
+    const modelHealthy = await client.checkModelHealth();
 
-    if (!healthy) {
+    setIsConnected(mcpHealthy);
+    setIsModelConnected(modelHealthy);
+
+    if (!mcpHealthy) {
       setMessages([
         {
           role: 'assistant',
@@ -73,7 +77,20 @@ export const ChatPanel: React.FC<IChatPanelProps> = ({ client, notebookPath, lab
             '⚠️ Cannot connect to MCP server. Please make sure:\n' +
             '1. tk-ai-extension is properly installed\n' +
             '2. Tk-ai Lab server is running\n' +
-            '3. API key is configured (ANTHROPIC_API_KEY)',
+            '3. Check server logs for errors',
+          timestamp: new Date()
+        }
+      ]);
+    } else if (!modelHealthy) {
+      setMessages([
+        {
+          role: 'assistant',
+          content:
+            '⚠️ MCP server is running, but Thinky AI is not accessible.\n\n' +
+            'Please check:\n' +
+            '1. ANTHROPIC_API_KEY environment variable is set\n' +
+            '2. API key is valid and has quota remaining\n' +
+            '3. Network connectivity to Anthropic API',
           timestamp: new Date()
         }
       ]);
@@ -157,9 +174,15 @@ export const ChatPanel: React.FC<IChatPanelProps> = ({ client, notebookPath, lab
   return (
     <div className="tk-chat-panel">
       {/* Connection status */}
-      <div className={`tk-connection-status ${isConnected ? 'connected' : 'disconnected'}`}>
-        <span className="tk-status-indicator"></span>
-        {isConnected ? 'Connected to MCP Server' : 'Disconnected'}
+      <div className="tk-connection-status">
+        <div className={`tk-status-item ${isConnected ? 'connected' : 'disconnected'}`}>
+          <span className="tk-status-indicator"></span>
+          <span className="tk-status-label">MCP Server</span>
+        </div>
+        <div className={`tk-status-item ${isModelConnected ? 'connected' : 'disconnected'}`}>
+          <span className="tk-status-indicator"></span>
+          <span className="tk-status-label">AI Model</span>
+        </div>
       </div>
 
       {/* Messages area */}
@@ -203,13 +226,13 @@ export const ChatPanel: React.FC<IChatPanelProps> = ({ client, notebookPath, lab
           onChange={e => setInputValue(e.target.value)}
           onKeyPress={handleKeyPress}
           placeholder="Ask Thinky about your notebooks..."
-          disabled={!isConnected || isLoading}
+          disabled={!isConnected || !isModelConnected || isLoading}
           rows={3}
         />
         <button
           className="tk-send-button"
           onClick={handleSend}
-          disabled={!isConnected || isLoading || !inputValue.trim()}
+          disabled={!isConnected || !isModelConnected || isLoading || !inputValue.trim()}
         >
           Send
         </button>

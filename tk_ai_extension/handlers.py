@@ -47,6 +47,40 @@ class MCPHealthHandler(JupyterHandler):
         })
 
 
+class ModelHealthHandler(JupyterHandler):
+    """Check AI model (Claude) connectivity."""
+
+    @web.authenticated
+    async def get(self):
+        """GET /api/tk-ai/mcp/model-health"""
+        try:
+            # Load secrets to get API key
+            load_secrets()
+
+            # Check if API key is configured
+            has_oauth = bool(os.environ.get('CLAUDE_CODE_OAUTH_TOKEN'))
+            has_api_key = bool(os.environ.get('ANTHROPIC_API_KEY'))
+
+            if not has_oauth and not has_api_key:
+                self.finish({
+                    "model_available": False,
+                    "error": "No API credentials found. Please set CLAUDE_CODE_OAUTH_TOKEN or ANTHROPIC_API_KEY."
+                })
+                return
+
+            # API key is present
+            self.finish({
+                "model_available": True
+            })
+
+        except Exception as e:
+            self.log.error(f"Model health check failed: {e}")
+            self.finish({
+                "model_available": False,
+                "error": str(e)
+            })
+
+
 class MCPToolsListHandler(JupyterHandler):
     """List available MCP tools."""
 
