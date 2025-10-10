@@ -312,7 +312,7 @@ class MCPChatHandler(JupyterHandler):
                     for block in message.content:
                         if isinstance(block, TextBlock):
                             response_text += block.text
-            self.log.info(f"[CLAUDE RESPONSE] {response_text[:500]}...")  # Log first 500 chars
+            self.log.info(f"[CLAUDE RESPONSE] {response_text}")
             self.log.info(f"Response received: {len(response_text)} chars")
 
             # Save conversation to notebook metadata
