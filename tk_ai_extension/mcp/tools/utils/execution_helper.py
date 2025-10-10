@@ -136,13 +136,20 @@ async def execute_via_execution_stack(
         return ["[Empty code]"]
 
     try:
+        logger.info(f"execute_via_execution_stack: Starting execution for kernel {kernel_id}")
+
         # Get the ExecutionStack from the jupyter_server_nbmodel extension
         nbmodel_extensions = serverapp.extension_manager.extension_apps.get("jupyter_server_nbmodel", set())
+        logger.info(f"execute_via_execution_stack: Found {len(nbmodel_extensions)} nbmodel extensions")
+
         if not nbmodel_extensions:
             raise RuntimeError("jupyter_server_nbmodel extension not found. Please install it.")
 
         nbmodel_ext = next(iter(nbmodel_extensions))
+        logger.info(f"execute_via_execution_stack: Got nbmodel extension: {type(nbmodel_ext)}")
+
         execution_stack = nbmodel_ext._Extension__execution_stack
+        logger.info(f"execute_via_execution_stack: Got ExecutionStack: {type(execution_stack)}")
 
         # Build metadata for RTC integration if available
         metadata = {}
@@ -234,12 +241,17 @@ async def execute_code_with_timeout(
     """
     # Try ExecutionStack first if serverapp is available
     if serverapp is not None:
-        return await execute_via_execution_stack(
+        logger.info(f"execute_code_with_timeout: Using ExecutionStack (serverapp is not None)")
+        result = await execute_via_execution_stack(
             serverapp=serverapp,
             kernel_id=kernel_id,
             code=code,
             timeout=timeout_seconds
         )
+        logger.info(f"execute_code_with_timeout: ExecutionStack returned: {result}")
+        return result
+
+    logger.warning(f"execute_code_with_timeout: serverapp is None, falling back to legacy method")
 
     # Legacy blocking method (DEPRECATED - causes 300s timeout issues)
     # This should only be used if serverapp is None
