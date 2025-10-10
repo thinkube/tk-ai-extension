@@ -29,12 +29,19 @@ const CommandIDs = {
 };
 
 /**
+ * Shared widget reference holder
+ */
+class WidgetRef {
+  widget: ChatWidget | null = null;
+}
+
+/**
  * Toolbar button extension for notebooks
  */
 class ThinkyButtonExtension
   implements DocumentRegistry.IWidgetExtension<NotebookPanel, DocumentRegistry.IModel>
 {
-  constructor(private app: JupyterFrontEnd, private widget: ChatWidget | null) {}
+  constructor(private app: JupyterFrontEnd, private widgetRef: WidgetRef) {}
 
   createNew(
     panel: NotebookPanel,
@@ -47,21 +54,21 @@ class ThinkyButtonExtension
         console.log(`Thinky button clicked for: ${notebookPath}`);
 
         // Open or focus Thinky widget
-        if (!this.widget || this.widget.isDisposed) {
-          this.widget = new ChatWidget(this.app.shell, notebookPath);
-          this.widget.id = 'tk-ai-chat';
-          this.widget.title.label = 'tk-ai Chat';
-          this.widget.title.closable = true;
+        if (!this.widgetRef.widget || this.widgetRef.widget.isDisposed) {
+          this.widgetRef.widget = new ChatWidget(this.app.shell, notebookPath);
+          this.widgetRef.widget.id = 'tk-ai-chat';
+          this.widgetRef.widget.title.label = 'tk-ai Chat';
+          this.widgetRef.widget.title.closable = true;
         } else {
           // Update context for existing widget
-          await this.widget.updateNotebookContext(notebookPath);
+          await this.widgetRef.widget.updateNotebookContext(notebookPath);
         }
 
-        if (!this.widget.isAttached) {
-          this.app.shell.add(this.widget, 'right', { rank: 500 });
+        if (!this.widgetRef.widget.isAttached) {
+          this.app.shell.add(this.widgetRef.widget, 'right', { rank: 500 });
         }
 
-        this.app.shell.activateById(this.widget.id);
+        this.app.shell.activateById(this.widgetRef.widget.id);
       },
       tooltip: 'Open Thinky AI Assistant for this notebook'
     });
@@ -88,22 +95,22 @@ const plugin: JupyterFrontEndPlugin<void> = {
   ) => {
     console.log('JupyterLab extension tk-ai-extension is activated!');
 
-    // Create a single widget instance (shared across all notebooks)
-    let widget: ChatWidget | null = null;
+    // Create a single widget reference (shared across all notebooks)
+    const widgetRef = new WidgetRef();
     const client = new MCPClient();
 
     // Add toolbar button to all notebook panels
     if (notebookTracker) {
-      const buttonExtension = new ThinkyButtonExtension(app, widget);
+      const buttonExtension = new ThinkyButtonExtension(app, widgetRef);
       app.docRegistry.addWidgetExtension('Notebook', buttonExtension);
       console.log('tk-ai-extension: Toolbar button added to notebooks');
 
       // Auto-detect notebook changes and update widget context
       notebookTracker.currentChanged.connect((tracker, notebookPanel) => {
-        if (notebookPanel && widget && !widget.isDisposed && widget.isAttached) {
+        if (notebookPanel && widgetRef.widget && !widgetRef.widget.isDisposed && widgetRef.widget.isAttached) {
           const notebookPath = notebookPanel.context.path;
           console.log(`Notebook changed to: ${notebookPath}`);
-          widget.updateNotebookContext(notebookPath);
+          widgetRef.widget.updateNotebookContext(notebookPath);
         }
       });
 
@@ -126,18 +133,18 @@ const plugin: JupyterFrontEndPlugin<void> = {
       label: 'Open tk-ai Chat',
       caption: 'Open the tk-ai chat interface',
       execute: () => {
-        if (!widget || widget.isDisposed) {
-          widget = new ChatWidget(app.shell);
-          widget.id = 'tk-ai-chat';
-          widget.title.label = 'tk-ai Chat';
-          widget.title.closable = true;
+        if (!widgetRef.widget || widgetRef.widget.isDisposed) {
+          widgetRef.widget = new ChatWidget(app.shell);
+          widgetRef.widget.id = 'tk-ai-chat';
+          widgetRef.widget.title.label = 'tk-ai Chat';
+          widgetRef.widget.title.closable = true;
         }
 
-        if (!widget.isAttached) {
-          app.shell.add(widget, 'right', { rank: 500 });
+        if (!widgetRef.widget.isAttached) {
+          app.shell.add(widgetRef.widget, 'right', { rank: 500 });
         }
 
-        app.shell.activateById(widget.id);
+        app.shell.activateById(widgetRef.widget.id);
       }
     });
 
