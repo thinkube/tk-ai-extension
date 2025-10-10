@@ -140,9 +140,12 @@ export const ChatPanel: React.FC<IChatPanelProps> = ({ client, notebookPath, lab
       const activeNotebookPath = getCurrentNotebookPath();
       const response = await client.sendMessage(inputValue, activeNotebookPath);
 
+      // Collapse multiple consecutive newlines to reduce blank lines
+      const cleanedResponse = response.replace(/\n\n+/g, '\n\n');
+
       const assistantMessage: IChatMessage = {
         role: 'assistant',
-        content: response,
+        content: cleanedResponse,
         timestamp: new Date()
       };
 

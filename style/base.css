@@ -174,7 +174,7 @@
 
 /* Markdown content styling - reduce excessive spacing */
 .tk-message-content p {
-  margin: 0.5em 0;
+  margin: 0.3em 0;
 }
 
 .tk-message-content p:first-child {
@@ -183,6 +183,11 @@
 
 .tk-message-content p:last-child {
   margin-bottom: 0;
+}
+
+/* Hide completely empty paragraphs to reduce blank lines */
+.tk-message-content p:empty {
+  display: none;
 }
 
 .tk-message-content ul,

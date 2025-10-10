@@ -167,6 +167,8 @@ class MCPChatHandler(JupyterHandler):
         prompt_parts = [
             "You are a helpful AI assistant with access to Jupyter notebooks and Thinkube services.",
             "",
+            "IMPORTANT: Use concise formatting. Avoid excessive blank lines in your responses.",
+            "",
             "## Current Context",
             f"Working directory: {notebooks_dir}",
         ]
