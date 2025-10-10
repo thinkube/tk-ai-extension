@@ -21,10 +21,14 @@ async def get_jupyter_ydoc(serverapp: Any, file_id: str) -> Optional[Any]:
         YNotebook document if available, None otherwise
     """
     try:
-        ywebsocket_server = serverapp.web_app.settings.get("ywebsocket_server")
-        if ywebsocket_server is None:
-            logger.debug("ywebsocket_server not available")
+        # Get ywebsocket_server from YDocExtension instance
+        ydoc_extensions = serverapp.extension_manager.extension_apps.get("jupyter_server_ydoc", set())
+        if not ydoc_extensions:
+            logger.debug("jupyter_server_ydoc extension not loaded")
             return None
+
+        ydoc_ext = next(iter(ydoc_extensions))
+        ywebsocket_server = ydoc_ext.ywebsocket_server
 
         room_id = f"json:notebook:{file_id}"
 

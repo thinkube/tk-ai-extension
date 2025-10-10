@@ -100,12 +100,16 @@ class ExecuteCellTool(BaseTool):
             file_id = file_id_manager.get_id(abs_path)
 
             # Get YDoc directly from DocumentRoom (no WebSocket needed - we're inside the server!)
-            ywebsocket_server = serverapp.web_app.settings.get("ywebsocket_server")
-            if not ywebsocket_server:
+            # Get ywebsocket_server from YDocExtension instance
+            ydoc_extensions = serverapp.extension_manager.extension_apps.get("jupyter_server_ydoc", set())
+            if not ydoc_extensions:
                 return {
-                    "error": "ywebsocket_server not available (collaboration not enabled?)",
+                    "error": "jupyter_server_ydoc extension not loaded (collaboration not enabled?)",
                     "success": False
                 }
+
+            ydoc_ext = next(iter(ydoc_extensions))
+            ywebsocket_server = ydoc_ext.ywebsocket_server
 
             room_id = f"json:notebook:{file_id}"
 
