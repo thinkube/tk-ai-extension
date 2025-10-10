@@ -115,13 +115,17 @@ const plugin: JupyterFrontEndPlugin<void> = {
       });
 
       // Cleanup sessions when notebooks are closed
-      notebookTracker.widgetRemoved.connect((tracker, notebookPanel) => {
-        const notebookPath = notebookPanel.context.path;
-        console.log(`Notebook closed: ${notebookPath}, closing Claude session`);
+      // Note: Use widgetAdded to track widgets, then listen to their disposal
+      notebookTracker.widgetAdded.connect((sender, notebookPanel) => {
+        // Listen for when this specific notebook is disposed
+        notebookPanel.disposed.connect(() => {
+          const notebookPath = notebookPanel.context.path;
+          console.log(`Notebook closed: ${notebookPath}, closing Claude session`);
 
-        // Fire-and-forget cleanup
-        client.closeSession(notebookPath).catch(err => {
-          console.error('Failed to close session:', err);
+          // Fire-and-forget cleanup
+          client.closeSession(notebookPath).catch(err => {
+            console.error('Failed to close session:', err);
+          });
         });
       });
 
