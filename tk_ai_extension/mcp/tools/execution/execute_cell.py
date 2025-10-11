@@ -129,8 +129,8 @@ class ExecuteCellTool(BaseTool):
                     "success": False
                 }
 
-            # Get YDoc from the room
-            ydoc = await yroom.get_jupyter_ydoc()
+            # Get YDoc from the room (DocumentRoom stores it as _document attribute)
+            ydoc = yroom._document
 
             serverapp.log.info(f"Got YDoc directly from DocumentRoom {room_id}")
 

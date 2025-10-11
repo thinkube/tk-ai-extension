@@ -34,7 +34,7 @@ async def get_jupyter_ydoc(serverapp: Any, file_id: str) -> Optional[Any]:
 
         if ywebsocket_server.room_exists(room_id):
             yroom = await ywebsocket_server.get_room(room_id)
-            notebook = await yroom.get_jupyter_ydoc()
+            notebook = yroom._document  # DocumentRoom stores YNotebook as _document attribute
             logger.debug(f"Got YDoc for {file_id}")
             return notebook
         else:
