@@ -91,14 +91,28 @@ class InsertCellTool(BaseTool):
             serverapp = getattr(contents_manager, 'parent', None)
             abs_path = get_notebook_path(serverapp, notebook_path)
 
-            # Get file_id for YDoc lookup
+            # Connect via WebSocket as proper collaborative client
             if serverapp:
                 file_id_manager = serverapp.web_app.settings.get("file_id_manager")
                 if file_id_manager:
                     file_id = file_id_manager.get_id(abs_path)
-                    ydoc = await get_jupyter_ydoc(serverapp, file_id)
 
-                    if ydoc:
+                    # Get auth token from serverapp
+                    token = getattr(serverapp, 'token', '')
+                    if not token and hasattr(serverapp, 'identity_provider'):
+                        token = getattr(serverapp.identity_provider, 'token', '')
+
+                    # Construct authenticated WebSocket URL
+                    base_url = f"http://127.0.0.1:{serverapp.port}"
+                    ws_url = base_url.replace("http://", "ws://")
+                    ws_url = f"{ws_url}/api/collaboration/room/json:notebook:{file_id}?token={token}"
+
+                    # Use NbModelClient to connect as a proper collaborator
+                    from jupyter_nbmodel_client import NbModelClient
+
+                    async with NbModelClient(ws_url) as nb_client:
+                        ydoc = nb_client._doc
+
                         # Use YDoc for collaborative editing
                         if cell_index < 0 or cell_index > len(ydoc.ycells):
                             return {

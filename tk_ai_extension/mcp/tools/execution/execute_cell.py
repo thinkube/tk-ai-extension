@@ -99,104 +99,91 @@ class ExecuteCellTool(BaseTool):
             file_id_manager = serverapp.web_app.settings.get("file_id_manager")
             file_id = file_id_manager.get_id(abs_path)
 
-            # Get YDoc directly from DocumentRoom (no WebSocket needed - we're inside the server!)
-            # Get ywebsocket_server from YDocExtension instance
-            ydoc_extensions = serverapp.extension_manager.extension_apps.get("jupyter_server_ydoc", set())
-            if not ydoc_extensions:
+            # Connect via WebSocket as proper collaborative client (not direct YDoc access)
+            # Get auth token from serverapp
+            token = getattr(serverapp, 'token', '')
+            if not token and hasattr(serverapp, 'identity_provider'):
+                token = getattr(serverapp.identity_provider, 'token', '')
+
+            # Construct authenticated WebSocket URL
+            base_url = f"http://127.0.0.1:{serverapp.port}"
+            ws_url = base_url.replace("http://", "ws://")
+            ws_url = f"{ws_url}/api/collaboration/room/json:notebook:{file_id}?token={token}"
+
+            serverapp.log.info(f"Connecting to notebook as collaborative client: {ws_url}")
+
+            # Use NbModelClient to connect as a proper collaborator
+            from jupyter_nbmodel_client import NbModelClient
+
+            async with NbModelClient(ws_url) as nb_client:
+                # Get YDoc from the client
+                ydoc = nb_client._doc
+
+                serverapp.log.info(f"Connected to collaborative session as Thinky")
+
+                # Validate cell index
+                if cell_index < 0 or cell_index >= len(ydoc.ycells):
+                    return {
+                        "error": f"Cell index {cell_index} out of range. Notebook has {len(ydoc.ycells)} cells.",
+                        "success": False
+                    }
+
+                cell = ydoc.ycells[cell_index]
+
+                # Only execute code cells
+                cell_type = cell.get("cell_type", "")
+                if cell_type != "code":
+                    return {
+                        "error": f"Cell {cell_index} is not a code cell (type: {cell_type})",
+                        "success": False
+                    }
+
+                # Get cell source
+                source_raw = cell.get("source", "")
+                if isinstance(source_raw, list):
+                    source = "".join(source_raw)
+                else:
+                    source = str(source_raw)
+
+                if not source:
+                    return {
+                        "error": "Cell is empty",
+                        "success": False
+                    }
+
+                serverapp.log.info(f"Executing cell {cell_index} source: {source[:100]}...")
+
+                # Execute code using kernel directly (adapted from jupyter-mcp-server)
+                outputs = await self._execute_code(
+                    serverapp=serverapp,
+                    kernel_id=kernel_id,
+                    code=source,
+                    timeout=timeout_seconds
+                )
+
+                serverapp.log.info(f"Execution completed with {len(outputs)} outputs")
+
+                # Update execution count in YDoc
+                max_count = 0
+                for c in ydoc.ycells:
+                    if c.get("cell_type") == "code" and c.get("execution_count"):
+                        max_count = max(max_count, c["execution_count"])
+
+                cell["execution_count"] = max_count + 1
+
+                # Update outputs in YDoc - this will automatically broadcast to all clients via RTC!
+                # Create fresh output array (pycrdt converts to CRDT Array automatically)
+                cell["outputs"] = []
+                for output in outputs:
+                    cell["outputs"].append(output)
+
+                serverapp.log.info(f"Updated cell {cell_index} outputs in YDoc ({len(outputs)} outputs) - RTC will sync to UI")
+
                 return {
-                    "error": "jupyter_server_ydoc extension not loaded (collaboration not enabled?)",
-                    "success": False
+                    "success": True,
+                    "cell_index": cell_index,
+                    "outputs": outputs
                 }
-
-            ydoc_ext = next(iter(ydoc_extensions))
-            ywebsocket_server = ydoc_ext.ywebsocket_server
-
-            room_id = f"json:notebook:{file_id}"
-
-            # Check if notebook is open in a collaborative session
-            if not ywebsocket_server.room_exists(room_id):
-                return {
-                    "error": f"Notebook not open in collaborative session (room {room_id} not found)",
-                    "success": False
-                }
-
-            # Get the DocumentRoom from ywebsocket_server
-            try:
-                yroom = await ywebsocket_server.get_room(room_id)
-            except Exception as e:
-                return {
-                    "error": f"Failed to get room {room_id}: {e}",
-                    "success": False
-                }
-
-            # Get YDoc from the room (DocumentRoom stores it as _document attribute)
-            ydoc = yroom._document
-
-            serverapp.log.info(f"Got YDoc directly from DocumentRoom {room_id}")
-
-            # Validate cell index
-            if cell_index < 0 or cell_index >= len(ydoc.ycells):
-                return {
-                    "error": f"Cell index {cell_index} out of range. Notebook has {len(ydoc.ycells)} cells.",
-                    "success": False
-                }
-
-            cell = ydoc.ycells[cell_index]
-
-            # Only execute code cells
-            cell_type = cell.get("cell_type", "")
-            if cell_type != "code":
-                return {
-                    "error": f"Cell {cell_index} is not a code cell (type: {cell_type})",
-                    "success": False
-                }
-
-            # Get cell source
-            source_raw = cell.get("source", "")
-            if isinstance(source_raw, list):
-                source = "".join(source_raw)
-            else:
-                source = str(source_raw)
-
-            if not source:
-                return {
-                    "error": "Cell is empty",
-                    "success": False
-                }
-
-            serverapp.log.info(f"Executing cell {cell_index} source: {source[:100]}...")
-
-            # Execute code using kernel directly (adapted from jupyter-mcp-server)
-            outputs = await self._execute_code(
-                serverapp=serverapp,
-                kernel_id=kernel_id,
-                code=source,
-                timeout=timeout_seconds
-            )
-
-            serverapp.log.info(f"Execution completed with {len(outputs)} outputs")
-
-            # Update execution count in YDoc
-            max_count = 0
-            for c in ydoc.ycells:
-                if c.get("cell_type") == "code" and c.get("execution_count"):
-                    max_count = max(max_count, c["execution_count"])
-
-            cell["execution_count"] = max_count + 1
-
-            # Update outputs in YDoc - this will automatically broadcast to all clients via RTC!
-            # Create fresh output array (pycrdt converts to CRDT Array automatically)
-            cell["outputs"] = []
-            for output in outputs:
-                cell["outputs"].append(output)
-
-            serverapp.log.info(f"Updated cell {cell_index} outputs in YDoc ({len(outputs)} outputs) - RTC will sync to UI")
-
-            return {
-                "success": True,
-                "cell_index": cell_index,
-                "outputs": outputs
-            }
 
         except Exception as e:
             if serverapp:
