@@ -105,10 +105,12 @@ class ExecuteCellTool(BaseTool):
             if not token and hasattr(serverapp, 'identity_provider'):
                 token = getattr(serverapp.identity_provider, 'token', '')
 
-            # Construct authenticated WebSocket URL
+            # Construct authenticated WebSocket URL (include JupyterHub user prefix if present)
             base_url = f"http://127.0.0.1:{serverapp.port}"
             ws_url = base_url.replace("http://", "ws://")
-            ws_url = f"{ws_url}/api/collaboration/room/json:notebook:{file_id}?token={token}"
+            # Add JupyterHub user prefix if running under JupyterHub
+            base_path = getattr(serverapp, 'base_url', '/')
+            ws_url = f"{ws_url}{base_path}api/collaboration/room/json:notebook:{file_id}?token={token}"
 
             serverapp.log.info(f"Connecting to notebook as collaborative client: {ws_url}")
 
