@@ -119,10 +119,14 @@ class InsertAndExecuteCellTool(BaseTool):
                 if file_id_manager:
                     file_id = file_id_manager.get_id(abs_path)
 
-                    # Get auth token from serverapp
-                    token = getattr(serverapp, 'token', '')
-                    if not token and hasattr(serverapp, 'identity_provider'):
-                        token = getattr(serverapp.identity_provider, 'token', '')
+                    # Get user's JupyterHub API token from environment
+                    import os
+                    token = os.environ.get('JUPYTERHUB_API_TOKEN')
+                    if not token:
+                        return {
+                            "error": "JUPYTERHUB_API_TOKEN environment variable not found. Cannot authenticate WebSocket connection.",
+                            "success": False
+                        }
 
                     # Construct authenticated WebSocket URL (include JupyterHub user prefix if present)
                     base_url = f"http://127.0.0.1:{serverapp.port}"
