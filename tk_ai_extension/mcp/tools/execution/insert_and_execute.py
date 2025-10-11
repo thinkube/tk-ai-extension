@@ -128,21 +128,21 @@ class InsertAndExecuteCellTool(BaseTool):
                                 "success": False
                             }
 
-                        # Insert new code cell
+                        # Insert new code cell - use minimal dict and let create_ycell() add all metadata
                         new_cell = {
                             "cell_type": "code",
-                            "source": code,
-                            "metadata": {},
-                            "outputs": [],
-                            "execution_count": None
+                            "source": "",
                         }
                         # Create proper CRDT cell object before inserting
                         ycell = ydoc.create_ycell(new_cell)
                         ydoc.ycells.insert(cell_index, ycell)
 
+                        # Set source after insertion (matches jupyter-mcp-server pattern)
+                        if code:
+                            ycell["source"] = code
+
                         # Get the newly inserted cell to retrieve its ID
-                        inserted_cell = ydoc.ycells[cell_index]
-                        inserted_cell_id = inserted_cell.get("id")
+                        inserted_cell_id = ycell.get("id")
 
                         # Construct document_id for RTC integration
                         document_id = f"json:notebook:{file_id}"
