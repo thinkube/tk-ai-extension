@@ -64,7 +64,6 @@ class TKAIExtension(ExtensionApp):
         from .mcp.tools.list_cells import ListCellsTool
         from .mcp.tools.read_cell import ReadCellTool
         from .mcp.tools.list_kernels import ListKernelsTool
-        from .mcp.tools.create_notebook import CreateNotebookTool
 
         # Kernel management
         from .mcp.tools.kernel import (
@@ -77,7 +76,6 @@ class TKAIExtension(ExtensionApp):
         # Cell execution
         from .mcp.tools.execution import (
             ExecuteCellTool,
-            ExecuteIPythonTool,
             InsertAndExecuteCellTool
         )
 
@@ -97,7 +95,6 @@ class TKAIExtension(ExtensionApp):
         register_tool(ListCellsTool())
         register_tool(ReadCellTool())
         register_tool(ListKernelsTool())
-        register_tool(CreateNotebookTool())
 
         # Register kernel management tools
         register_tool(RestartKernelTool())
@@ -107,7 +104,6 @@ class TKAIExtension(ExtensionApp):
 
         # Register execution tools
         register_tool(ExecuteCellTool())
-        register_tool(ExecuteIPythonTool())
         register_tool(InsertAndExecuteCellTool())
 
         # Register manipulation tools

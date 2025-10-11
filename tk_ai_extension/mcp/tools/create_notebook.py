@@ -18,7 +18,7 @@ class CreateNotebookTool(BaseTool):
 
     @property
     def description(self) -> str:
-        return "Create a new Jupyter notebook with optional markdown and code cells"
+        return "Create a NEW Jupyter notebook with optional initial cells. WARNING: Only use this for creating NEW notebooks from scratch. To add cells to an EXISTING notebook, use insert_cell instead."
 
     @property
     def input_schema(self) -> dict:
@@ -107,7 +107,7 @@ class CreateNotebookTool(BaseTool):
                 "format": "json"
             }
 
-            contents_manager.save(model, path)
+            await contents_manager.save(model, path)
 
             return {
                 "success": True,
