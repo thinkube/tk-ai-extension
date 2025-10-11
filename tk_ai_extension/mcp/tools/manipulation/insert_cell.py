@@ -117,7 +117,9 @@ class InsertCellTool(BaseTool):
                             new_cell["outputs"] = []
                             new_cell["execution_count"] = None
 
-                        ydoc.ycells.insert(cell_index, new_cell)
+                        # Create proper CRDT cell object before inserting
+                        ycell = ydoc.create_ycell(new_cell)
+                        ydoc.ycells.insert(cell_index, ycell)
 
                         return {
                             "success": True,

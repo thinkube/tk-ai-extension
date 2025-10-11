@@ -136,7 +136,9 @@ class InsertAndExecuteCellTool(BaseTool):
                             "outputs": [],
                             "execution_count": None
                         }
-                        ydoc.ycells.insert(cell_index, new_cell)
+                        # Create proper CRDT cell object before inserting
+                        ycell = ydoc.create_ycell(new_cell)
+                        ydoc.ycells.insert(cell_index, ycell)
 
                         # Get the newly inserted cell to retrieve its ID
                         inserted_cell = ydoc.ycells[cell_index]
