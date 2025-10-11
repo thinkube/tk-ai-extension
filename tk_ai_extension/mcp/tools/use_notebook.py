@@ -181,64 +181,31 @@ Examples:
             kernel_info = {"id": kernel_id}
             logger.info(f"Connected to existing kernel '{kernel_id}'")
         else:
-            # Start a new kernel
-            try:
-                kernel_id = await kernel_manager.start_kernel()
-                logger.info(f"Started kernel '{kernel_id}', waiting for it to be ready...")
+            # Find the existing session for this notebook
+            existing_kernel_id = None
+            if session_manager:
+                try:
+                    sessions = await session_manager.list_sessions()
+                    for session in sessions:
+                        if session.get('path') == notebook_path or session.get('name') == notebook_path:
+                            existing_kernel_id = session.get('kernel', {}).get('id')
+                            logger.info(f"Found existing session with kernel '{existing_kernel_id}' for notebook '{notebook_path}'")
+                            break
+                except Exception as e:
+                    return f"Failed to list sessions: {e}"
 
-                # CRITICAL: Wait for the kernel to actually start and be ready
-                # The start_kernel() call returns immediately, but kernel takes time to start
-                max_wait_time = 30  # seconds
-                wait_interval = 0.5  # seconds
-                elapsed = 0
-                kernel_ready = False
+            if not existing_kernel_id:
+                return f"No existing kernel found for notebook '{notebook_path}'. The notebook must be opened in JupyterLab first."
 
-                while elapsed < max_wait_time:
-                    try:
-                        # Get kernel model to check its state
-                        kernel_model = kernel_manager.get_kernel(kernel_id)
-                        if kernel_model is not None:
-                            # Kernel exists, check if it's ready by getting connection info
-                            try:
-                                kernel_manager.get_connection_info(kernel_id)
-                                kernel_ready = True
-                                logger.info(f"Kernel '{kernel_id}' is ready (took {elapsed:.1f}s)")
-                                break
-                            except:
-                                # Connection info not available yet, kernel still starting
-                                pass
-                    except Exception as e:
-                        logger.debug(f"Waiting for kernel to start: {e}")
+            # Reuse the existing kernel
+            kernel_id = existing_kernel_id
+            kernel_info = {"id": kernel_id}
+            logger.info(f"Reusing existing kernel '{kernel_id}' for notebook '{notebook_path}'")
 
-                    await asyncio.sleep(wait_interval)
-                    elapsed += wait_interval
-
-                if not kernel_ready:
-                    logger.warning(f"Kernel '{kernel_id}' may not be fully ready after {max_wait_time}s wait")
-
-                kernel_info = {"id": kernel_id}
-            except Exception as e:
-                return f"Failed to start kernel: {e}"
-
-        # Create a Jupyter session to associate the kernel with the notebook
-        # This is CRITICAL for JupyterLab to recognize the kernel-notebook connection
-        if session_manager is not None:
-            try:
-                # create_session is an async method
-                session_dict = await session_manager.create_session(
-                    path=notebook_path,
-                    kernel_id=kernel_id,
-                    type="notebook",
-                    name=notebook_path
-                )
-                logger.info(f"Created Jupyter session '{session_dict.get('id')}' for notebook '{notebook_path}' with kernel '{kernel_id}'")
-            except Exception as e:
-                logger.warning(f"Failed to create Jupyter session: {e}. Notebook may not be properly connected in JupyterLab UI.")
-        else:
-            logger.warning("No session_manager available. Notebook may not be properly connected in JupyterLab UI.")
+        # Don't create a new session - use the existing one
+        # The session already exists since we found the kernel from it
 
         # Add notebook to manager
-        # Our NotebookManager has a simpler signature: add_notebook(name, kernel_info, path)
         notebook_manager.add_notebook(
             notebook_name,
             kernel_info,
@@ -249,7 +216,4 @@ Examples:
         notebook_manager.set_current_notebook(notebook_name)
 
         # Return success message
-        if mode == "create":
-            return f"Successfully created and connected to notebook '{notebook_name}' at '{notebook_path}' with kernel {kernel_id}."
-        else:
-            return f"Successfully connected to notebook '{notebook_name}' at '{notebook_path}' with kernel {kernel_id}."
+        return f"Successfully connected to notebook '{notebook_name}' at '{notebook_path}' with existing kernel {kernel_id}."
