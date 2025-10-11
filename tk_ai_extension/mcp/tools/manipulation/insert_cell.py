@@ -91,61 +91,59 @@ class InsertCellTool(BaseTool):
             serverapp = getattr(contents_manager, 'parent', None)
             abs_path = get_notebook_path(serverapp, notebook_path)
 
-            # Connect via WebSocket as proper collaborative client
+            # Get YDoc via jupyter-server-ydoc extension (same as jupyter-server-nbmodel does)
             if serverapp:
                 file_id_manager = serverapp.web_app.settings.get("file_id_manager")
                 if file_id_manager:
                     file_id = file_id_manager.get_id(abs_path)
 
-                    # Get user's JupyterHub API token from environment
-                    import os
-                    token = os.environ.get('JUPYTERHUB_API_TOKEN')
-                    if not token:
+                    # Get YDoc via jupyter-server-ydoc extension
+                    ydoc_extensions = serverapp.extension_manager.extension_apps.get("jupyter_server_ydoc", set())
+                    if not ydoc_extensions:
                         return {
-                            "error": "JUPYTERHUB_API_TOKEN environment variable not found. Cannot authenticate WebSocket connection.",
+                            "error": "jupyter-server-ydoc extension not found",
                             "success": False
                         }
 
-                    # Construct authenticated WebSocket URL (include JupyterHub user prefix if present)
-                    base_url = f"http://127.0.0.1:{serverapp.port}"
-                    ws_url = base_url.replace("http://", "ws://")
-                    # Add JupyterHub user prefix if running under JupyterHub
-                    base_path = getattr(serverapp, 'base_url', '/')
-                    ws_url = f"{ws_url}{base_path}api/collaboration/room/json:notebook:{file_id}?token={token}"
+                    ydoc_extension = next(iter(ydoc_extensions))
+                    document_id = f"json:notebook:{file_id}"
 
-                    # Use NbModelClient to connect as a proper collaborator
-                    from jupyter_nbmodel_client import NbModelClient
+                    # Get the YNotebook document
+                    ydoc = await ydoc_extension.get_document(room_id=document_id, copy=False)
 
-                    async with NbModelClient(ws_url) as nb_client:
-                        ydoc = nb_client._doc
-
-                        # Use YDoc for collaborative editing
-                        if cell_index < 0 or cell_index > len(ydoc.ycells):
-                            return {
-                                "error": f"Cell index {cell_index} out of range. Notebook has {len(ydoc.ycells)} cells",
-                                "success": False
-                            }
-
-                        # Insert new cell - use minimal dict and let create_ycell() add all metadata
-                        new_cell = {
-                            "cell_type": cell_type,
-                            "source": "",
-                        }
-
-                        # Create proper CRDT cell object before inserting
-                        ycell = ydoc.create_ycell(new_cell)
-                        ydoc.ycells.insert(cell_index, ycell)
-
-                        # Set source after insertion (matches jupyter-mcp-server pattern)
-                        if source:
-                            ycell["source"] = source
-
+                    if ydoc is None:
                         return {
-                            "success": True,
-                            "cell_index": cell_index,
-                            "cell_type": cell_type,
-                            "message": f"{cell_type.capitalize()} cell inserted at index {cell_index}"
+                            "error": f"Document {document_id} not found",
+                            "success": False
                         }
+
+                    # Validate cell index
+                    if cell_index < 0 or cell_index > len(ydoc.ycells):
+                        return {
+                            "error": f"Cell index {cell_index} out of range. Notebook has {len(ydoc.ycells)} cells",
+                            "success": False
+                        }
+
+                    # Insert new cell - use minimal dict and let create_ycell() add all metadata
+                    new_cell = {
+                        "cell_type": cell_type,
+                        "source": "",
+                    }
+
+                    # Create proper CRDT cell object before inserting
+                    ycell = ydoc.create_ycell(new_cell)
+                    ydoc.ycells.insert(cell_index, ycell)
+
+                    # Set source after insertion (matches jupyter-mcp-server pattern)
+                    if source:
+                        ycell["source"] = source
+
+                    return {
+                        "success": True,
+                        "cell_index": cell_index,
+                        "cell_type": cell_type,
+                        "message": f"{cell_type.capitalize()} cell inserted at index {cell_index}"
+                    }
 
             # Fallback to file operations
             with open(abs_path, 'r', encoding='utf-8') as f:

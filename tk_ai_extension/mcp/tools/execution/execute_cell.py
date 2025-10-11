@@ -99,97 +99,93 @@ class ExecuteCellTool(BaseTool):
             file_id_manager = serverapp.web_app.settings.get("file_id_manager")
             file_id = file_id_manager.get_id(abs_path)
 
-            # Connect via WebSocket as proper collaborative client (not direct YDoc access)
-            # Get user's JupyterHub API token from environment
-            import os
-            token = os.environ.get('JUPYTERHUB_API_TOKEN')
-            if not token:
+            # Get YDoc via jupyter-server-ydoc extension (same as jupyter-server-nbmodel does)
+            ydoc_extensions = serverapp.extension_manager.extension_apps.get("jupyter_server_ydoc", set())
+            if not ydoc_extensions:
                 return {
-                    "error": "JUPYTERHUB_API_TOKEN environment variable not found. Cannot authenticate WebSocket connection.",
+                    "error": "jupyter-server-ydoc extension not found",
                     "success": False
                 }
 
-            # Construct authenticated WebSocket URL (include JupyterHub user prefix if present)
-            base_url = f"http://127.0.0.1:{serverapp.port}"
-            ws_url = base_url.replace("http://", "ws://")
-            # Add JupyterHub user prefix if running under JupyterHub
-            base_path = getattr(serverapp, 'base_url', '/')
-            ws_url = f"{ws_url}{base_path}api/collaboration/room/json:notebook:{file_id}?token={token}"
+            ydoc_extension = next(iter(ydoc_extensions))
+            document_id = f"json:notebook:{file_id}"
 
-            serverapp.log.info(f"Connecting to notebook as collaborative client: {ws_url}")
+            serverapp.log.info(f"Getting YDoc for document {document_id}")
 
-            # Use NbModelClient to connect as a proper collaborator
-            from jupyter_nbmodel_client import NbModelClient
+            # Get the YNotebook document (this is what jupyter-server-nbmodel does)
+            ydoc = await ydoc_extension.get_document(room_id=document_id, copy=False)
 
-            async with NbModelClient(ws_url) as nb_client:
-                # Get YDoc from the client
-                ydoc = nb_client._doc
-
-                serverapp.log.info(f"Connected to collaborative session as Thinky")
-
-                # Validate cell index
-                if cell_index < 0 or cell_index >= len(ydoc.ycells):
-                    return {
-                        "error": f"Cell index {cell_index} out of range. Notebook has {len(ydoc.ycells)} cells.",
-                        "success": False
-                    }
-
-                cell = ydoc.ycells[cell_index]
-
-                # Only execute code cells
-                cell_type = cell.get("cell_type", "")
-                if cell_type != "code":
-                    return {
-                        "error": f"Cell {cell_index} is not a code cell (type: {cell_type})",
-                        "success": False
-                    }
-
-                # Get cell source
-                source_raw = cell.get("source", "")
-                if isinstance(source_raw, list):
-                    source = "".join(source_raw)
-                else:
-                    source = str(source_raw)
-
-                if not source:
-                    return {
-                        "error": "Cell is empty",
-                        "success": False
-                    }
-
-                serverapp.log.info(f"Executing cell {cell_index} source: {source[:100]}...")
-
-                # Execute code using kernel directly (adapted from jupyter-mcp-server)
-                outputs = await self._execute_code(
-                    serverapp=serverapp,
-                    kernel_id=kernel_id,
-                    code=source,
-                    timeout=timeout_seconds
-                )
-
-                serverapp.log.info(f"Execution completed with {len(outputs)} outputs")
-
-                # Update execution count in YDoc
-                max_count = 0
-                for c in ydoc.ycells:
-                    if c.get("cell_type") == "code" and c.get("execution_count"):
-                        max_count = max(max_count, c["execution_count"])
-
-                cell["execution_count"] = max_count + 1
-
-                # Update outputs in YDoc - this will automatically broadcast to all clients via RTC!
-                # Create fresh output array (pycrdt converts to CRDT Array automatically)
-                cell["outputs"] = []
-                for output in outputs:
-                    cell["outputs"].append(output)
-
-                serverapp.log.info(f"Updated cell {cell_index} outputs in YDoc ({len(outputs)} outputs) - RTC will sync to UI")
-
+            if ydoc is None:
                 return {
-                    "success": True,
-                    "cell_index": cell_index,
-                    "outputs": outputs
+                    "error": f"Document {document_id} not found",
+                    "success": False
                 }
+
+            serverapp.log.info(f"Got YDoc for document {document_id}")
+
+            # Validate cell index
+            if cell_index < 0 or cell_index >= len(ydoc.ycells):
+                return {
+                    "error": f"Cell index {cell_index} out of range. Notebook has {len(ydoc.ycells)} cells.",
+                    "success": False
+                }
+
+            cell = ydoc.ycells[cell_index]
+
+            # Only execute code cells
+            cell_type = cell.get("cell_type", "")
+            if cell_type != "code":
+                return {
+                    "error": f"Cell {cell_index} is not a code cell (type: {cell_type})",
+                    "success": False
+                }
+
+            # Get cell source
+            source_raw = cell.get("source", "")
+            if isinstance(source_raw, list):
+                source = "".join(source_raw)
+            else:
+                source = str(source_raw)
+
+            if not source:
+                return {
+                    "error": "Cell is empty",
+                    "success": False
+                }
+
+            serverapp.log.info(f"Executing cell {cell_index} source: {source[:100]}...")
+
+            # Execute code using kernel directly (adapted from jupyter-mcp-server)
+            outputs = await self._execute_code(
+                serverapp=serverapp,
+                kernel_id=kernel_id,
+                code=source,
+                timeout=timeout_seconds
+            )
+
+            serverapp.log.info(f"Execution completed with {len(outputs)} outputs")
+
+            # Update execution count in YDoc
+            max_count = 0
+            for c in ydoc.ycells:
+                if c.get("cell_type") == "code" and c.get("execution_count"):
+                    max_count = max(max_count, c["execution_count"])
+
+            cell["execution_count"] = max_count + 1
+
+            # Update outputs in YDoc - this will automatically broadcast to all clients via RTC!
+            # Create fresh output array (pycrdt converts to CRDT Array automatically)
+            cell["outputs"] = []
+            for output in outputs:
+                cell["outputs"].append(output)
+
+            serverapp.log.info(f"Updated cell {cell_index} outputs in YDoc ({len(outputs)} outputs) - RTC will sync to UI")
+
+            return {
+                "success": True,
+                "cell_index": cell_index,
+                "outputs": outputs
+            }
 
         except Exception as e:
             if serverapp:
