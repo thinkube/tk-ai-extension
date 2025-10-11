@@ -54,7 +54,13 @@ def register_tool(tool_instance):
             )
 
             if serverapp:
-                serverapp.log.info(f"[TOOL RESULT] {tool_instance.name} returned: {result}")
+                # Log success without dumping potentially large result data
+                success = result.get('success', True) if isinstance(result, dict) else True
+                if success:
+                    serverapp.log.info(f"[TOOL RESULT] {tool_instance.name} completed successfully")
+                else:
+                    error = result.get('error', 'Unknown error') if isinstance(result, dict) else 'Unknown error'
+                    serverapp.log.info(f"[TOOL RESULT] {tool_instance.name} failed: {error}")
 
             return {
                 "content": [
