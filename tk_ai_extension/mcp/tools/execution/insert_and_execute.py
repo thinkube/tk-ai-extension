@@ -150,6 +150,7 @@ class InsertAndExecuteCellTool(BaseTool):
                     new_cell = {
                         "cell_type": "code",
                         "source": "",
+                        "execution_count": None,  # Required for code cells
                     }
                     # Create proper CRDT cell object before inserting
                     ycell = ydoc.create_ycell(new_cell)

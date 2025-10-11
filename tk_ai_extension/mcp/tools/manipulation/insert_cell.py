@@ -130,6 +130,10 @@ class InsertCellTool(BaseTool):
                         "source": "",
                     }
 
+                    # Code cells require execution_count (null for unexecuted)
+                    if cell_type == "code":
+                        new_cell["execution_count"] = None
+
                     # Create proper CRDT cell object before inserting
                     ycell = ydoc.create_ycell(new_cell)
                     ydoc.ycells.insert(cell_index, ycell)
