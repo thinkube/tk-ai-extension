@@ -185,9 +185,14 @@ class ExecuteCellTool(BaseTool):
             cell["execution_count"] = max_count + 1
 
             # Update outputs in YDoc - this will automatically broadcast to all clients via RTC!
-            cell["outputs"] = outputs
+            # Clear existing outputs first
+            cell["outputs"].clear()
 
-            serverapp.log.info(f"Updated cell {cell_index} outputs in YDoc - RTC will sync to UI")
+            # Append new outputs one by one (pycrdt handles conversion internally)
+            for output in outputs:
+                cell["outputs"].append(output)
+
+            serverapp.log.info(f"Updated cell {cell_index} outputs in YDoc ({len(outputs)} outputs) - RTC will sync to UI")
 
             return {
                 "success": True,
