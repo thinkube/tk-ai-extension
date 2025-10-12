@@ -315,7 +315,7 @@ class MCPChatHandler(JupyterHandler):
             self.log.info(f"[CLAUDE RESPONSE] {response_text}")
             self.log.info(f"Response received: {len(response_text)} chars")
 
-            # Save conversation to notebook metadata
+            # Save conversation to notebook metadata via YDoc
             try:
                 from .conversation_persistence import save_conversation_to_notebook, load_conversation_from_notebook
 
@@ -328,9 +328,12 @@ class MCPChatHandler(JupyterHandler):
                     {"role": "assistant", "content": response_text}
                 ]
 
-                # Save back to notebook
-                save_conversation_to_notebook(notebook_path, updated_messages)
-                self.log.info(f"Conversation saved to {notebook_path}")
+                # Get serverapp for YDoc access
+                serverapp = self.settings.get('serverapp')
+
+                # Save back to notebook via YDoc (no file operations)
+                await save_conversation_to_notebook(notebook_path, updated_messages, serverapp)
+                self.log.info(f"Conversation saved to {notebook_path} via YDoc")
             except Exception as e:
                 self.log.warning(f"Failed to save conversation: {e}")
                 # Don't fail the request if saving fails

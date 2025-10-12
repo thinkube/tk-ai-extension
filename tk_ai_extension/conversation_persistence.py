@@ -11,62 +11,68 @@ from typing import List, Dict, Any, Optional
 logger = logging.getLogger(__name__)
 
 
-def save_conversation_to_notebook(notebook_path: str, messages: List[Dict[str, Any]]) -> bool:
-    """Save conversation history to notebook metadata.
+async def save_conversation_to_notebook(notebook_path: str, messages: List[Dict[str, Any]], serverapp=None) -> bool:
+    """Save conversation history to notebook metadata via YDoc (NO FILE OPERATIONS).
 
     Args:
         notebook_path: Path to the notebook file
         messages: List of conversation messages [{"role": "user"|"assistant", "content": "..."}]
+        serverapp: Jupyter ServerApp instance (REQUIRED)
 
     Returns:
         True if successful, False otherwise
     """
+    if not serverapp:
+        logger.error("serverapp is REQUIRED - cannot save conversation without YDoc access")
+        return False
+
     try:
-        # Convert to Path object
-        nb_path = Path(notebook_path)
+        from .mcp.tools.utils import get_jupyter_ydoc, get_notebook_path
 
-        # Handle relative paths (assume from /home/jovyan/thinkube/notebooks)
-        if not nb_path.is_absolute():
-            # Check if path already contains thinkube/notebooks prefix
-            path_str = str(notebook_path)
-            if path_str.startswith('thinkube/notebooks/'):
-                # Path already includes the prefix, just prepend home
-                nb_path = Path.home() / path_str
-            else:
-                # Path needs full prefix
-                nb_path = Path.home() / 'thinkube' / 'notebooks' / notebook_path
+        # Get absolute path
+        abs_path = get_notebook_path(serverapp, notebook_path)
 
-        if not nb_path.exists():
-            logger.error(f"Notebook not found: {nb_path}")
+        # Get file_id for YDoc lookup
+        file_id_manager = serverapp.web_app.settings.get("file_id_manager")
+        if not file_id_manager:
+            logger.error("file_id_manager not available")
             return False
 
-        # Load notebook
-        with open(nb_path, 'r', encoding='utf-8') as f:
-            notebook = json.load(f)
+        file_id = file_id_manager.get_id(abs_path)
 
-        # Ensure metadata structure exists
-        if 'metadata' not in notebook:
-            notebook['metadata'] = {}
+        # Get YDoc
+        ydoc = await get_jupyter_ydoc(serverapp, file_id)
 
-        if 'tk_ai' not in notebook['metadata']:
-            notebook['metadata']['tk_ai'] = {}
+        if not ydoc:
+            logger.error(f"YDoc not available for {notebook_path} - notebook must be open")
+            return False
 
-        # Save conversation history (limit to last 100 messages to avoid bloat)
-        notebook['metadata']['tk_ai']['conversation_history'] = messages[-100:]
-        notebook['metadata']['tk_ai']['last_updated'] = str(Path(nb_path).stat().st_mtime)
+        # Access metadata via YDoc's _ymeta Map
+        ymeta = ydoc._ymeta
+        metadata = ymeta.get("metadata", {})
 
-        # Write back to disk
-        with open(nb_path, 'w', encoding='utf-8') as f:
-            json.dump(notebook, f, indent=1, ensure_ascii=False)
+        # Convert to Python dict if it's a pycrdt Map
+        if hasattr(metadata, 'to_py'):
+            metadata = metadata.to_py()
+        else:
+            metadata = dict(metadata)
 
-        logger.info(f"Saved {len(messages)} messages to {notebook_path}")
+        # Ensure tk_ai structure exists
+        if 'tk_ai' not in metadata:
+            metadata['tk_ai'] = {}
+
+        # Save conversation history (limit to last 100 messages)
+        metadata['tk_ai']['conversation_history'] = messages[-100:]
+
+        # Write back to YDoc metadata
+        from pycrdt import Map
+        ymeta["metadata"] = Map(metadata)
+
+        logger.info(f"Saved {len(messages)} messages to {notebook_path} via YDoc")
         return True
 
-    except json.JSONDecodeError as e:
-        logger.error(f"Invalid JSON in notebook {notebook_path}: {e}")
-        return False
     except Exception as e:
-        logger.error(f"Error saving conversation to {notebook_path}: {e}")
+        logger.error(f"Error saving conversation via YDoc to {notebook_path}: {e}", exc_info=True)
         return False
 
 
