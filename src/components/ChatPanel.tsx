@@ -230,11 +230,17 @@ export const ChatPanel = React.forwardRef<any, IChatPanelProps>(({ client, noteb
   const extractExecutionId = (text: string): { executionId: string; cellIndex: number } | null => {
     console.log('Checking for execution_id in response:', text.substring(0, 500));
 
-    // Look for patterns like "execution_id": "uuid" or execution_id: uuid or execution_id uuid
-    const executionIdMatch = text.match(/execution_id['":\s]+([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})/i);
+    // Look for UUID patterns - they might appear as:
+    // - "execution_id": "uuid"
+    // - execution_id: uuid
+    // - with ID `uuid`
+    // - execution ID uuid
+    const uuidPattern = /([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})/i;
+    const uuidMatch = text.match(uuidPattern);
 
-    if (executionIdMatch) {
-      console.log('Found execution_id:', executionIdMatch[1]);
+    if (uuidMatch) {
+      const executionId = uuidMatch[1];
+      console.log('Found execution_id:', executionId);
 
       // Look for cell index near the execution_id
       const cellIndexMatch = text.match(/(?:cell|index)[_\s]+(\d+)/i);
@@ -243,7 +249,7 @@ export const ChatPanel = React.forwardRef<any, IChatPanelProps>(({ client, noteb
       console.log('Extracted cellIndex:', cellIndex);
 
       return {
-        executionId: executionIdMatch[1],
+        executionId: executionId,
         cellIndex: cellIndex
       };
     }
