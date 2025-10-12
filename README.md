@@ -390,6 +390,20 @@ import os
 print(os.environ.get('ANTHROPIC_API_KEY', 'Not set'))
 ```
 
+## Architecture Documentation
+
+For detailed technical documentation about how the Real-Time Collaboration (RTC) system works:
+
+- **[JupyterLab RTC Architecture](https://github.com/thinkube/thinkube/blob/main/docs/jupyterlab-rtc-architecture.md)** - Complete technical overview of CRDT-based collaboration, YDoc integration, and why we use jupyter-server-nbmodel from GitHub
+- **[RTC Implementation Guide](https://github.com/thinkube/thinkube/blob/main/docs/jupyterlab-rtc-implementation-guide.md)** - Practical guide for developers adding new tools and working with YDoc
+
+These documents explain:
+- How Thinky (AI agent) modifies notebooks in real-time via CRDTs
+- Why cell insertions appear instantly in the UI without page refreshes
+- Critical dependencies and their bugfixes
+- Complete data flow diagrams
+- Common patterns and best practices
+
 ## Roadmap
 
 - [x] Phase 1: MCP Foundation
@@ -398,17 +412,21 @@ print(os.environ.get('ANTHROPIC_API_KEY', 'Not set'))
 - [x] Phase 4: Additional Tools & HTTP Handlers
 - [x] Phase 5: Testing & Documentation
 - [x] Phase 6: Packaging & Deployment
-- [x] Phase 7: Chat Sidebar UI ✨ NEW!
+- [x] Phase 7: Chat Sidebar UI ✨
+- [x] Phase 8: Real-Time Collaboration Integration ✨ NEW!
+
+### Recent Achievements
+
+- **Full CRDT Integration** - Thinky can insert/modify cells with instant UI updates
+- **Conversation Persistence** - Chat history saved to notebook metadata via YDoc
+- **Real Cell Execution** - Manual and AI-triggered execution works via jupyter-server-nbmodel
+- **No Page Refreshes** - All changes sync automatically via Real-Time Collaboration
 
 ### Upcoming Features
 
-- **Full Claude Chat Integration** - Complete backend integration for chat UI
-- **Real-time Streaming** - Stream Claude's responses as they generate
-- **Conversation History** - Persist chat conversations across sessions
 - **Tool Usage Visualization** - Show which tools Claude is using in real-time
-- **Full Cell Execution** - Complete implementation of execute_cell tool
-- **Cell Insertion/Modification** - Tools to insert and edit cells
-- **Kernel Management** - Start, stop, restart kernels
+- **Enhanced Cell Operations** - More cell manipulation tools
+- **Kernel Management** - Start, stop, restart kernels from Thinky
 
 ## Contributing
 
