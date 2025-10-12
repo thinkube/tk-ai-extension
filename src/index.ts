@@ -156,18 +156,33 @@ const plugin: JupyterFrontEndPlugin<void> = {
           }
 
           if (!documentId) {
-            // Fallback: construct from path (though server expects UUID, this is better than nothing)
+            // Fetch file_id UUID from backend API
             const path = panel.context.path;
             if (path) {
-              documentId = `json:notebook:${path}`;
-              console.warn(`tk-ai-extension: Using path-based document_id fallback: ${documentId}`);
+              try {
+                const response = await fetch(`/user/thinkube/api/tk-ai/fileid?path=${encodeURIComponent(path)}`);
+                if (response.ok) {
+                  const data = await response.json();
+                  documentId = data.document_id; // Format: json:notebook:{uuid}
+                  console.log(`tk-ai-extension: Fetched document_id from backend: ${documentId}`);
+                } else {
+                  console.warn(`tk-ai-extension: Failed to fetch file_id, status: ${response.status}`);
+                  // Fallback: construct from path
+                  documentId = `json:notebook:${path}`;
+                  console.warn(`tk-ai-extension: Using path-based document_id fallback: ${documentId}`);
+                }
+              } catch (fetchErr) {
+                console.error('tk-ai-extension: Error fetching file_id:', fetchErr);
+                // Fallback: construct from path
+                documentId = `json:notebook:${path}`;
+                console.warn(`tk-ai-extension: Using path-based document_id fallback: ${documentId}`);
+              }
             }
           }
 
           if (documentId && typeof sharedModel.setState === 'function') {
             sharedModel.setState('document_id', documentId);
             console.log(`tk-ai-extension: Set document_id for notebook: ${documentId}`);
-            console.log(`tk-ai-extension: documentId property:`, sharedModel.documentId);
           } else {
             console.error('tk-ai-extension: Could not determine document_id or setState not available');
           }

@@ -124,7 +124,8 @@ class TKAIExtension(ExtensionApp):
             MCPToolCallHandler,
             MCPChatHandler,
             SessionCloseHandler,
-            NotebookConnectHandler
+            NotebookConnectHandler,
+            FileIdHandler
         )
 
         self.handlers.extend([
@@ -135,6 +136,7 @@ class TKAIExtension(ExtensionApp):
             (r"/api/tk-ai/mcp/chat", MCPChatHandler),
             (r"/api/tk-ai/mcp/session/close", SessionCloseHandler),
             (r"/api/tk-ai/mcp/notebook/connect", NotebookConnectHandler),
+            (r"/api/tk-ai/fileid", FileIdHandler),
         ])
 
 
