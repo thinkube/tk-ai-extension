@@ -130,6 +130,48 @@ const plugin: JupyterFrontEndPlugin<void> = {
       });
 
       console.log('tk-ai-extension: Notebook tracking enabled');
+
+      // CRITICAL: Set document_id in notebook shared model for RTC execution
+      // This is needed because jupyter-server-nbmodel executor reads document_id
+      // from notebook.sharedModel.getState('document_id') but nothing was setting it
+      // (the disabled @jupyter/docprovider-extension:notebook-cell-executor used to do this)
+      const setDocumentId = async (panel: NotebookPanel) => {
+        if (!panel) return;
+
+        try {
+          await panel.context.ready;
+          const path = panel.context.path;
+
+          if (path && panel.content?.model?.sharedModel) {
+            // Build document_id matching server expectations: json:notebook:{path}
+            const documentId = `json:notebook:${path}`;
+            const sharedModel = panel.content.model.sharedModel as any;
+
+            if (typeof sharedModel.setState === 'function') {
+              sharedModel.setState('document_id', documentId);
+              console.log(`tk-ai-extension: Set document_id for notebook: ${documentId}`);
+            } else {
+              console.warn('tk-ai-extension: SharedModel does not have setState method', sharedModel);
+            }
+          }
+        } catch (err) {
+          console.error('tk-ai-extension: Error setting document_id:', err);
+        }
+      };
+
+      // Set document_id for currently active notebook
+      notebookTracker.currentChanged.connect((_sender, panel) => {
+        if (panel) {
+          void setDocumentId(panel);
+        }
+      });
+
+      // Set document_id for already open notebooks
+      notebookTracker.forEach((panel) => {
+        void setDocumentId(panel);
+      });
+
+      console.log('tk-ai-extension: document_id initialization enabled');
     }
 
     // Command to open chat (keep for programmatic access)
