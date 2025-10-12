@@ -20,7 +20,11 @@ class MoveCellTool(BaseTool):
 
     @property
     def description(self) -> str:
-        return "Move a cell from one position to another in a Jupyter notebook"
+        return (
+            "Move a cell from one position to another in a Jupyter notebook. "
+            "IMPORTANT: Both from_index and to_index are 0-based positions (NOT execution counts). "
+            "Use list_cells first to see current indices."
+        )
 
     @property
     def input_schema(self) -> dict:
@@ -33,11 +37,11 @@ class MoveCellTool(BaseTool):
                 },
                 "from_index": {
                     "type": "integer",
-                    "description": "Current index of the cell (0-based)"
+                    "description": "Current 0-based index of the cell (NOT execution count). Use list_cells to see current indices."
                 },
                 "to_index": {
                     "type": "integer",
-                    "description": "Target index where the cell should be moved (0-based)"
+                    "description": "Target 0-based index where the cell should be moved (NOT execution count)."
                 }
             },
             "required": ["notebook_path", "from_index", "to_index"]

@@ -17,7 +17,11 @@ class ListCellsTool(BaseTool):
 
     @property
     def description(self) -> str:
-        return "List all cells in a notebook with their types and preview"
+        return (
+            "List all cells in a notebook with their types and preview. "
+            "Shows BOTH cell_index (0-based position for insertion/deletion) and execution_count (the [N] shown in UI). "
+            "IMPORTANT: Use cell_index when calling insert_cell, delete_cell, etc. The execution count is just for reference."
+        )
 
     @property
     def input_schema(self) -> dict:
@@ -60,7 +64,10 @@ class ListCellsTool(BaseTool):
                 return f"Notebook '{notebook}' has no cells"
 
             result = [f"Cells in '{notebook}':"]
-            result.append("-" * 80)
+            result.append("IMPORTANT: Use 'index' (0-based) for insert/delete operations, NOT execution count!")
+            result.append("-" * 90)
+            result.append("index | exec_count | type      | preview")
+            result.append("-" * 90)
 
             for i, cell in enumerate(cells):
                 cell_type = cell.get('cell_type', 'unknown')
@@ -70,19 +77,21 @@ class ListCellsTool(BaseTool):
                 if isinstance(source, list):
                     source = ''.join(source)
 
-                # Get preview (first 50 chars)
-                preview = source[:50].replace('\n', ' ')
-                if len(source) > 50:
+                # Get preview (first 60 chars)
+                preview = source[:60].replace('\n', ' ')
+                if len(source) > 60:
                     preview += "..."
 
                 # Add execution count for code cells
-                exec_info = ""
+                exec_count_str = ""
                 if cell_type == "code":
                     execution_count = cell.get('execution_count')
                     if execution_count is not None:
-                        exec_info = f" [#{execution_count}]"
+                        exec_count_str = f"[{execution_count}]"
+                    else:
+                        exec_count_str = "[-]"
 
-                result.append(f"{i:3d}. {cell_type:10s}{exec_info:10s} | {preview}")
+                result.append(f"{i:5d} | {exec_count_str:10s} | {cell_type:9s} | {preview}")
 
             return "\n".join(result)
 

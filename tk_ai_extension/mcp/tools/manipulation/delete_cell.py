@@ -20,7 +20,11 @@ class DeleteCellTool(BaseTool):
 
     @property
     def description(self) -> str:
-        return "Delete a cell from a Jupyter notebook at a specific position"
+        return (
+            "Delete a cell from a Jupyter notebook at a specific position. "
+            "IMPORTANT: cell_index is 0-based position (NOT execution count). "
+            "Use list_cells first to see current indices and identify which cell to delete."
+        )
 
     @property
     def input_schema(self) -> dict:
@@ -33,7 +37,7 @@ class DeleteCellTool(BaseTool):
                 },
                 "cell_index": {
                     "type": "integer",
-                    "description": "Index of the cell to delete (0-based)"
+                    "description": "0-based index of the cell to delete (NOT execution count). Use list_cells to see current indices."
                 }
             },
             "required": ["notebook_path", "cell_index"]

@@ -21,7 +21,11 @@ class OverwriteCellTool(BaseTool):
 
     @property
     def description(self) -> str:
-        return "Overwrite the source of an existing cell. Shows a diff of the changes made."
+        return (
+            "Overwrite the source of an existing cell. Shows a diff of the changes made. "
+            "IMPORTANT: cell_index is 0-based position (NOT execution count). "
+            "Use list_cells first to see current indices and identify which cell to modify."
+        )
 
     @property
     def input_schema(self) -> dict:
@@ -34,7 +38,7 @@ class OverwriteCellTool(BaseTool):
                 },
                 "cell_index": {
                     "type": "integer",
-                    "description": "Index of the cell to overwrite (0-based)"
+                    "description": "0-based index of the cell to overwrite (NOT execution count). Use list_cells to see current indices."
                 },
                 "source": {
                     "type": "string",

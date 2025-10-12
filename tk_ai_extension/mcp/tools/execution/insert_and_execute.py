@@ -20,7 +20,12 @@ class InsertAndExecuteCellTool(BaseTool):
 
     @property
     def description(self) -> str:
-        return "Insert a new code cell into a notebook and execute it immediately. NOTE: You must call use_notebook first to connect to a notebook and its kernel."
+        return (
+            "Insert a new code cell into a notebook and execute it immediately. "
+            "IMPORTANT: cell_index is 0-based position (NOT execution count). "
+            "Use list_cells first to see current indices. "
+            "NOTE: You must call use_notebook first to connect to a notebook and its kernel."
+        )
 
     @property
     def input_schema(self) -> dict:
@@ -33,7 +38,7 @@ class InsertAndExecuteCellTool(BaseTool):
                 },
                 "cell_index": {
                     "type": "integer",
-                    "description": "Index where to insert the cell (cell will be inserted before this index)"
+                    "description": "0-based index where to insert (NOT execution count). Cell will be inserted BEFORE this index. Use list_cells to see current indices."
                 },
                 "code": {
                     "type": "string",
