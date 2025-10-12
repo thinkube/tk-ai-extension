@@ -110,11 +110,11 @@ async def execute_via_execution_stack(
     timeout: int = 300,
     poll_interval: float = 0.1
 ) -> List[str]:
-    """Execute code using ExecutionStack (non-blocking, preferred method).
+    """Execute code using jupyter-server-nbmodel REST API (non-blocking, preferred method).
 
-    This uses the ExecutionStack from jupyter-server-nbmodel extension directly,
-    avoiding blocking client.get_iopub_msg() calls. This is the preferred method
-    for code execution in JUPYTER_SERVER mode.
+    This uses the jupyter-server-nbmodel REST API for cell execution, which automatically
+    broadcasts outputs via YDoc/WebSocket for Real-Time Collaboration. Uses JupyterHub's
+    API token for authentication.
 
     Args:
         serverapp: Jupyter server application instance
@@ -129,29 +129,28 @@ async def execute_via_execution_stack(
         List of formatted output strings
 
     Raises:
-        RuntimeError: If jupyter-server-nbmodel extension is not installed
         TimeoutError: If execution exceeds timeout
     """
     if not code or not code.strip():
         return ["[Empty code]"]
 
     try:
+        import os
+        import json as json_module
+        from tornado.httpclient import AsyncHTTPClient, HTTPRequest
+
         logger.info(f"execute_via_execution_stack: Starting execution for kernel {kernel_id}")
 
-        # Get the ExecutionStack from the jupyter_server_nbmodel extension
-        nbmodel_extensions = serverapp.extension_manager.extension_apps.get("jupyter_server_nbmodel", set())
-        logger.info(f"execute_via_execution_stack: Found {len(nbmodel_extensions)} nbmodel extensions")
+        # Get JupyterHub API token from environment
+        hub_token = os.environ.get('JUPYTERHUB_API_TOKEN')
+        if not hub_token:
+            raise RuntimeError("JUPYTERHUB_API_TOKEN not found in environment")
 
-        if not nbmodel_extensions:
-            raise RuntimeError("jupyter_server_nbmodel extension not found. Please install it.")
+        # Get server base URL
+        base_url = os.environ.get('JUPYTERHUB_SERVICE_PREFIX', '')
+        server_url = f"http://localhost:8888{base_url}"
 
-        nbmodel_ext = next(iter(nbmodel_extensions))
-        logger.info(f"execute_via_execution_stack: Got nbmodel extension: {type(nbmodel_ext)}")
-
-        execution_stack = nbmodel_ext._Extension__execution_stack
-        logger.info(f"execute_via_execution_stack: Got ExecutionStack: {type(execution_stack)}")
-
-        # Build metadata for RTC integration if available
+        # Build metadata for RTC integration
         metadata = {}
         if document_id and cell_id:
             metadata = {
@@ -159,23 +158,63 @@ async def execute_via_execution_stack(
                 "cell_id": cell_id
             }
 
-        # Submit execution request
-        logger.info(f"Submitting execution request to kernel {kernel_id}")
-        request_id = execution_stack.put(kernel_id, code, metadata)
+        # Submit execution request via REST API
+        http_client = AsyncHTTPClient()
+        execute_url = f"{server_url}api/kernels/{kernel_id}/execute"
+
+        logger.info(f"Submitting execution request to {execute_url}")
+
+        request = HTTPRequest(
+            url=execute_url,
+            method="POST",
+            headers={
+                "Authorization": f"token {hub_token}",
+                "Content-Type": "application/json"
+            },
+            body=json_module.dumps({
+                "code": code,
+                "metadata": metadata
+            })
+        )
+
+        response = await http_client.fetch(request)
+
+        if response.code != 202:
+            raise RuntimeError(f"Execution request failed with status {response.code}")
+
+        # Extract request ID from Location header
+        location = response.headers.get('Location')
+        if not location:
+            raise RuntimeError("No Location header in response")
+
+        request_id = location.split('/')[-1]
         logger.info(f"Execution request {request_id} submitted")
 
         # Poll for results
+        result_url = f"{server_url}{location.lstrip('/')}"
         start_time = asyncio.get_event_loop().time()
+
         while True:
             elapsed = asyncio.get_event_loop().time() - start_time
             if elapsed > timeout:
                 raise TimeoutError(f"Execution timed out after {timeout} seconds")
 
-            # Get result (returns None if pending, result dict if complete)
-            result = execution_stack.get(kernel_id, request_id)
+            # Poll result endpoint
+            result_request = HTTPRequest(
+                url=result_url,
+                method="GET",
+                headers={"Authorization": f"token {hub_token}"}
+            )
 
-            if result is not None:
+            result_response = await http_client.fetch(result_request, raise_error=False)
+
+            if result_response.code == 202:
+                # Still pending
+                await asyncio.sleep(poll_interval)
+                continue
+            elif result_response.code == 200:
                 # Execution complete
+                result = json_module.loads(result_response.body)
                 logger.info(f"Execution request {request_id} completed")
 
                 # Check for errors
@@ -184,20 +223,14 @@ async def execute_via_execution_stack(
                     logger.error(f"Execution error: {error_info}")
                     return [f"[ERROR: {error_info.get('ename', 'Unknown')}: {error_info.get('evalue', '')}]"]
 
-                # Check for pending input (shouldn't happen with allow_stdin=False)
-                if "input_request" in result:
-                    logger.warning("Unexpected input request during execution")
-                    return ["[ERROR: Unexpected input request]"]
-
                 # Extract outputs
                 outputs = result.get("outputs", [])
 
-                # Parse JSON string if needed (ExecutionStack returns JSON string)
+                # Parse JSON string if needed
                 if isinstance(outputs, str):
-                    import json
                     try:
-                        outputs = json.loads(outputs)
-                    except json.JSONDecodeError:
+                        outputs = json_module.loads(outputs)
+                    except json_module.JSONDecodeError:
                         logger.error(f"Failed to parse outputs JSON: {outputs}")
                         return [f"[ERROR: Invalid output format]"]
 
@@ -208,12 +241,12 @@ async def execute_via_execution_stack(
                 else:
                     logger.info("Execution completed with no outputs")
                     return ["[No output generated]"]
-
-            # Still pending, wait before next poll
-            await asyncio.sleep(poll_interval)
+            else:
+                # Error
+                raise RuntimeError(f"Failed to get result: HTTP {result_response.code}")
 
     except Exception as e:
-        logger.error(f"Error executing via ExecutionStack: {e}", exc_info=True)
+        logger.error(f"Error executing via REST API: {e}", exc_info=True)
         return [f"[ERROR: {str(e)}]"]
 
 
