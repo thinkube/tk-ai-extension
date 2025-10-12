@@ -115,6 +115,19 @@ const plugin: JupyterFrontEndPlugin<void> = {
         }
       });
 
+      // Listen for notebook renames and update widget context
+      notebookTracker.widgetAdded.connect((sender, notebookPanel) => {
+        notebookPanel.context.pathChanged.connect((context) => {
+          const newPath = context.path;
+          console.log(`Notebook renamed to: ${newPath}`);
+
+          // Update widget context if it's visible and attached
+          if (widgetRef.widget && !widgetRef.widget.isDisposed && widgetRef.widget.isAttached) {
+            widgetRef.widget.updateNotebookContext(newPath);
+          }
+        });
+      });
+
       // Cleanup sessions when notebooks are closed
       // Note: Use widgetAdded to track widgets, then listen to their disposal
       notebookTracker.widgetAdded.connect((sender, notebookPanel) => {

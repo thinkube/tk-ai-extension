@@ -239,4 +239,24 @@ export class MCPClient {
       // Don't throw - this is fire-and-forget cleanup
     }
   }
+
+  /**
+   * Clear conversation history for a notebook
+   */
+  async clearConversation(notebookPath: string): Promise<void> {
+    const url = URLExt.join(this.baseUrl, 'conversation', 'clear');
+    const response = await ServerConnection.makeRequest(
+      url,
+      {
+        method: 'POST',
+        body: JSON.stringify({ notebook_path: notebookPath })
+      },
+      this.serverSettings
+    );
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || `Failed to clear conversation: ${response.statusText}`);
+    }
+  }
 }

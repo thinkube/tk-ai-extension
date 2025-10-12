@@ -128,52 +128,71 @@ def load_conversation_from_notebook(notebook_path: str) -> List[Dict[str, Any]]:
         return []
 
 
-def clear_conversation(notebook_path: str) -> bool:
-    """Clear conversation history from notebook metadata.
+async def clear_conversation(notebook_path: str, serverapp=None) -> bool:
+    """Clear conversation history from notebook metadata via YDoc (NO FILE OPERATIONS).
 
     Args:
         notebook_path: Path to the notebook file
+        serverapp: Jupyter ServerApp instance (REQUIRED)
 
     Returns:
         True if successful, False otherwise
     """
+    if not serverapp:
+        logger.error("serverapp is REQUIRED - cannot clear conversation without YDoc access")
+        return False
+
     try:
-        # Convert to Path object
-        nb_path = Path(notebook_path)
+        from .mcp.tools.utils import get_jupyter_ydoc, get_notebook_path
 
-        # Handle relative paths
-        if not nb_path.is_absolute():
-            # Check if path already contains thinkube/notebooks prefix
-            path_str = str(notebook_path)
-            if path_str.startswith('thinkube/notebooks/'):
-                # Path already includes the prefix, just prepend home
-                nb_path = Path.home() / path_str
-            else:
-                # Path needs full prefix
-                nb_path = Path.home() / 'thinkube' / 'notebooks' / notebook_path
+        logger.info(f"clear_conversation called with notebook_path: {notebook_path}")
 
-        if not nb_path.exists():
-            logger.error(f"Notebook not found: {nb_path}")
+        # Get absolute path
+        abs_path = get_notebook_path(serverapp, notebook_path)
+        logger.info(f"Converted to abs_path: {abs_path}")
+
+        # Get file_id for YDoc lookup
+        file_id_manager = serverapp.web_app.settings.get("file_id_manager")
+        if not file_id_manager:
+            logger.error("file_id_manager not available")
             return False
 
-        # Load notebook
-        with open(nb_path, 'r', encoding='utf-8') as f:
-            notebook = json.load(f)
+        file_id = file_id_manager.get_id(abs_path)
+        logger.info(f"Got file_id: {file_id}")
+
+        # Get YDoc
+        ydoc = await get_jupyter_ydoc(serverapp, file_id)
+
+        if not ydoc:
+            logger.error(f"YDoc not available for {notebook_path} - notebook must be open")
+            return False
+
+        # Access metadata via YDoc's _ymeta Map
+        ymeta = ydoc._ymeta
+        metadata = ymeta.get("metadata", {})
+
+        # Convert to Python dict if it's a pycrdt Map
+        if hasattr(metadata, 'to_py'):
+            metadata = metadata.to_py()
+        else:
+            metadata = dict(metadata)
+
+        # Ensure tk_ai structure exists
+        if 'tk_ai' not in metadata:
+            metadata['tk_ai'] = {}
 
         # Clear conversation history
-        if 'metadata' in notebook and 'tk_ai' in notebook['metadata']:
-            notebook['metadata']['tk_ai']['conversation_history'] = []
-            notebook['metadata']['tk_ai']['last_updated'] = str(Path(nb_path).stat().st_mtime)
+        metadata['tk_ai']['conversation_history'] = []
 
-        # Write back to disk
-        with open(nb_path, 'w', encoding='utf-8') as f:
-            json.dump(notebook, f, indent=1, ensure_ascii=False)
+        # Write back to YDoc metadata
+        from pycrdt import Map
+        ymeta["metadata"] = Map(metadata)
 
-        logger.info(f"Cleared conversation history from {notebook_path}")
+        logger.info(f"Cleared conversation history from {notebook_path} via YDoc")
         return True
 
     except Exception as e:
-        logger.error(f"Error clearing conversation from {notebook_path}: {e}")
+        logger.error(f"Error clearing conversation via YDoc from {notebook_path}: {e}", exc_info=True)
         return False
 
 

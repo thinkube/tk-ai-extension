@@ -70,6 +70,13 @@ export const ChatPanel = React.forwardRef<any, IChatPanelProps>(({ client, noteb
     checkConnection();
   }, []);
 
+  // Load notebook history when notebook path is available
+  useEffect(() => {
+    if (notebookPath && isConnected && isModelConnected) {
+      loadNotebookHistory();
+    }
+  }, [notebookPath, isConnected, isModelConnected]);
+
   // Auto-scroll to bottom when messages change
   useEffect(() => {
     scrollToBottom();
@@ -89,7 +96,7 @@ export const ChatPanel = React.forwardRef<any, IChatPanelProps>(({ client, noteb
           content:
             '⚠️ Cannot connect to MCP server. Please make sure:\n' +
             '1. tk-ai-extension is properly installed\n' +
-            '2. Tk-ai Lab server is running\n' +
+            '2. Thinkube\'s AI Lab server is running\n' +
             '3. Check server logs for errors',
           timestamp: new Date()
         }
@@ -107,26 +114,57 @@ export const ChatPanel = React.forwardRef<any, IChatPanelProps>(({ client, noteb
           timestamp: new Date()
         }
       ]);
-    } else {
-      setMessages([
-        {
-          role: 'assistant',
-          content:
-            'Hello! I\'m Thinky, your Tk-ai Lab notebook assistant.\n\n' +
-            '**To get started:**\n' +
-            '1. Tell me which notebook you want to work with\n' +
-            '2. I\'ll connect to it and start a kernel\n' +
-            '3. Then I can execute cells, modify code, and analyze your work!\n\n' +
-            'Try: "Use the notebook Untitled2.ipynb"\n\n' +
-            '**I can help you:**\n' +
-            '• Connect to notebooks and manage kernels\n' +
-            '• Execute and modify cells\n' +
-            '• Analyze code and find patterns\n' +
-            '• Debug errors and suggest improvements',
-          timestamp: new Date()
-        }
-      ]);
     }
+    // Don't set welcome message here - wait for loadNotebookHistory if notebook path exists
+  };
+
+  const loadNotebookHistory = async () => {
+    if (!notebookPath) return;
+
+    try {
+      console.log(`Loading history for notebook: ${notebookPath}`);
+      const result = await client.connectNotebook(notebookPath);
+
+      // Set notebook name so navbar appears
+      setConnectedNotebook(result.notebook_name);
+
+      // Restore conversation if history exists
+      if (result.messages && result.messages.length > 0) {
+        console.log(`Restored ${result.messages.length} messages`);
+        setMessages(result.messages);
+      } else {
+        // No history - show welcome message
+        console.log('No history found, showing welcome message');
+        showWelcomeMessage(result.notebook_name);
+      }
+    } catch (error) {
+      console.error('Failed to load notebook history:', error);
+      // Show welcome message even if loading fails
+      const notebookName = notebookPath.split('/').pop()?.replace('.ipynb', '') || 'notebook';
+      showWelcomeMessage(notebookName);
+    }
+  };
+
+  const showWelcomeMessage = (notebookName: string) => {
+    setMessages([
+      {
+        role: 'assistant',
+        content:
+          `Hello! I'm Thinky, your assistant for **Thinkube's AI Lab**.\n\n` +
+          `I'm connected to **${notebookName}** and ready to help!\n\n` +
+          '**I can help you:**\n' +
+          '• Insert and modify cells in your notebook\n' +
+          '• Execute code and analyze results\n' +
+          '• Debug errors and suggest improvements\n' +
+          '• Answer questions about your code and data\n\n' +
+          '**Try asking:**\n' +
+          '• "Add a cell that imports pandas and loads data.csv"\n' +
+          '• "Explain what cell 3 does"\n' +
+          '• "Find all cells that use matplotlib"\n' +
+          '• "Create a visualization of the results"',
+        timestamp: new Date()
+      }
+    ]);
   };
 
   const scrollToBottom = () => {
@@ -183,6 +221,27 @@ export const ChatPanel = React.forwardRef<any, IChatPanelProps>(({ client, noteb
     }
   };
 
+  const handleClearHistory = async () => {
+    if (!notebookPath) return;
+
+    const confirmed = window.confirm(
+      'Clear conversation history?\n\nThis will delete all messages from this notebook and start a fresh conversation with Thinky.'
+    );
+
+    if (!confirmed) return;
+
+    try {
+      await client.clearConversation(notebookPath);
+
+      // Clear messages and show welcome message
+      const notebookName = connectedNotebook || notebookPath.split('/').pop()?.replace('.ipynb', '') || 'notebook';
+      showWelcomeMessage(notebookName);
+    } catch (error) {
+      console.error('Failed to clear conversation:', error);
+      alert(`Failed to clear conversation: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  };
+
   const formatTimestamp = (date: Date) => {
     return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   };
@@ -192,9 +251,19 @@ export const ChatPanel = React.forwardRef<any, IChatPanelProps>(({ client, noteb
       {/* Notebook name display */}
       {connectedNotebook && (
         <div className="tk-notebook-navbar">
-          <span className="tk-notebook-icon">📓</span>
-          <span className="tk-notebook-name">{connectedNotebook}</span>
-          {isRestoring && <span className="tk-notebook-restoring">(restoring...)</span>}
+          <div className="tk-notebook-info">
+            <span className="tk-notebook-icon">📓</span>
+            <span className="tk-notebook-name">{connectedNotebook}</span>
+            {isRestoring && <span className="tk-notebook-restoring">(restoring...)</span>}
+          </div>
+          <button
+            className="tk-clear-history-button"
+            onClick={handleClearHistory}
+            disabled={isLoading || messages.length === 0}
+            title="Clear conversation history"
+          >
+            🗑️
+          </button>
         </div>
       )}
 

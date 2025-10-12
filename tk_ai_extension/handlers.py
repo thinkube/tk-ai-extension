@@ -551,3 +551,69 @@ class NotebookConnectHandler(JupyterHandler):
             self.log.error(f"Error connecting to notebook: {e}")
             self.set_status(500)
             self.finish({"error": str(e)})
+
+
+class ClearConversationHandler(JupyterHandler):
+    """Clear conversation history for a notebook."""
+
+    @web.authenticated
+    async def post(self):
+        """POST /api/tk-ai/mcp/conversation/clear
+
+        Body:
+        {
+            "notebook_path": "path/to/notebook.ipynb"
+        }
+
+        Returns:
+        {
+            "success": true,
+            "message": "Conversation history cleared"
+        }
+        """
+        try:
+            body = json.loads(self.request.body.decode('utf-8'))
+            notebook_path = body.get('notebook_path')
+
+            if not notebook_path:
+                self.set_status(400)
+                self.finish({"error": "notebook_path parameter is required"})
+                return
+
+            # Get serverapp for YDoc access
+            serverapp = self.settings.get('serverapp')
+            if not serverapp:
+                self.set_status(500)
+                self.finish({"error": "ServerApp not available"})
+                return
+
+            # Clear conversation using YDoc
+            from .conversation_persistence import clear_conversation
+
+            success = await clear_conversation(notebook_path, serverapp)
+
+            if success:
+                # Also reset the Claude client session for this notebook
+                client_manager = self.settings.get('claude_client_manager')
+                if client_manager:
+                    await client_manager.close_client(notebook_path)
+                    self.log.info(f"Reset Claude session for {notebook_path}")
+
+                self.finish({
+                    "success": True,
+                    "message": "Conversation history cleared"
+                })
+            else:
+                self.set_status(500)
+                self.finish({
+                    "success": False,
+                    "error": "Failed to clear conversation history"
+                })
+
+        except json.JSONDecodeError:
+            self.set_status(400)
+            self.finish({"error": "Invalid JSON in request body"})
+        except Exception as e:
+            self.log.error(f"Error clearing conversation: {e}")
+            self.set_status(500)
+            self.finish({"error": str(e)})
