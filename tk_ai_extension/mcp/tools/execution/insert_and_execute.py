@@ -145,13 +145,15 @@ class InsertAndExecuteCellTool(BaseTool):
                     "success": False
                 }
 
-            # Insert new code cell with source included from the start
+            # Create new cell dict with source content
+            # create_ycell() will convert source to Text object automatically
             new_cell = {
                 "cell_type": "code",
-                "source": code,  # Include source in initial cell dict
+                "source": code,
                 "execution_count": None,  # Required for code cells
             }
-            # Create proper CRDT cell object with source already set
+
+            # Create proper CRDT cell object
             ycell = ydoc.create_ycell(new_cell)
             ydoc.ycells.insert(cell_index, ycell)
 
