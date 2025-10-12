@@ -228,17 +228,27 @@ export const ChatPanel = React.forwardRef<any, IChatPanelProps>(({ client, noteb
    * Extract execution_id from Claude's response if present
    */
   const extractExecutionId = (text: string): { executionId: string; cellIndex: number } | null => {
-    // Look for patterns like "execution_id": "uuid" or execution_id to poll results
-    const executionIdMatch = text.match(/execution_id['":\s]+([a-f0-9-]{36})/i);
-    const cellIndexMatch = text.match(/cell[_\s]+(\d+)|index[_\s]+(\d+)/i);
+    console.log('Checking for execution_id in response:', text.substring(0, 500));
+
+    // Look for patterns like "execution_id": "uuid" or execution_id: uuid or execution_id uuid
+    const executionIdMatch = text.match(/execution_id['":\s]+([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})/i);
 
     if (executionIdMatch) {
-      const cellIndex = cellIndexMatch ? parseInt(cellIndexMatch[1] || cellIndexMatch[2]) : -1;
+      console.log('Found execution_id:', executionIdMatch[1]);
+
+      // Look for cell index near the execution_id
+      const cellIndexMatch = text.match(/(?:cell|index)[_\s]+(\d+)/i);
+      const cellIndex = cellIndexMatch ? parseInt(cellIndexMatch[1]) : -1;
+
+      console.log('Extracted cellIndex:', cellIndex);
+
       return {
         executionId: executionIdMatch[1],
         cellIndex: cellIndex
       };
     }
+
+    console.log('No execution_id found in response');
     return null;
   };
 
