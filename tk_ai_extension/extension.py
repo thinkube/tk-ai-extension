@@ -90,6 +90,13 @@ class TKAIExtension(ExtensionApp):
         # Notebook connection
         from .mcp.tools.use_notebook import UseNotebookTool
 
+        # Python environment introspection
+        from .mcp.tools.introspection import (
+            ListModulesTool,
+            GetModuleInfoTool,
+            CheckModuleTool
+        )
+
         # Register basic tools
         register_tool(ListNotebooksTool())
         register_tool(ListCellsTool())
@@ -114,6 +121,11 @@ class TKAIExtension(ExtensionApp):
 
         # Register notebook connection tools
         register_tool(UseNotebookTool())
+
+        # Register introspection tools
+        register_tool(ListModulesTool())
+        register_tool(GetModuleInfoTool())
+        register_tool(CheckModuleTool())
 
     def initialize_handlers(self):
         """Initialize HTTP handlers."""
