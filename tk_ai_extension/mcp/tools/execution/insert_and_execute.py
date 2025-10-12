@@ -115,12 +115,28 @@ class InsertAndExecuteCellTool(BaseTool):
 
             abs_path = get_notebook_path(serverapp, notebook_path)
 
-            # Check if kernel exists
+            # Check if kernel exists and get execution state
             kernels = list(kernel_manager.list_kernels())
-            if not any(k['id'] == kernel_id for k in kernels):
+            kernel_info = None
+            for k in kernels:
+                if k['id'] == kernel_id:
+                    kernel_info = k
+                    break
+
+            if not kernel_info:
                 return {
                     "error": f"Kernel '{kernel_id}' not found",
                     "success": False
+                }
+
+            # Check kernel execution state (natural lock mechanism)
+            execution_state = kernel_info.get('execution_state', 'unknown')
+            if execution_state == 'busy':
+                return {
+                    "error": "Kernel is currently busy executing another cell. Please wait for the current execution to complete.",
+                    "success": False,
+                    "kernel_id": kernel_id,
+                    "execution_state": execution_state
                 }
 
             # Get file_id for YDoc lookup

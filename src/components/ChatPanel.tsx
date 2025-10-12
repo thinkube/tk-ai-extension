@@ -93,9 +93,11 @@ export const ChatPanel = React.forwardRef<any, IChatPanelProps>(({ client, noteb
   const [isModelConnected, setIsModelConnected] = useState(false);
   const [connectedNotebook, setConnectedNotebook] = useState<string | null>(null);
   const [isRestoring, setIsRestoring] = useState(false);
+  const [isExecutingInBackground, setIsExecutingInBackground] = useState(false);
+  const [executingCellIndex, setExecutingCellIndex] = useState<number | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // Expose restoreConversation method via ref
+  // Expose methods via ref
   React.useImperativeHandle(ref, () => ({
     restoreConversation: (notebookName: string, restoredMessages: IChatMessage[]) => {
       console.log(`Restoring conversation for ${notebookName}: ${restoredMessages.length} messages`);
@@ -103,6 +105,11 @@ export const ChatPanel = React.forwardRef<any, IChatPanelProps>(({ client, noteb
       setConnectedNotebook(notebookName);
       setMessages(restoredMessages);
       setTimeout(() => setIsRestoring(false), 500); // Brief restore indicator
+    },
+    setBackgroundExecution: (isExecuting: boolean, cellIndex?: number) => {
+      console.log(`Background execution ${isExecuting ? 'started' : 'ended'}${cellIndex !== undefined ? ` at cell ${cellIndex}` : ''}`);
+      setIsExecutingInBackground(isExecuting);
+      setExecutingCellIndex(isExecuting && cellIndex !== undefined ? cellIndex : null);
     }
   }));
 
@@ -322,6 +329,11 @@ export const ChatPanel = React.forwardRef<any, IChatPanelProps>(({ client, noteb
             <span className="tk-notebook-icon">📓</span>
             <span className="tk-notebook-name">{connectedNotebook}</span>
             {isRestoring && <span className="tk-notebook-restoring">(restoring...)</span>}
+            {isExecutingInBackground && (
+              <span className="tk-notebook-executing">
+                ⚙️ Executing cell {executingCellIndex !== null ? executingCellIndex : '...'}
+              </span>
+            )}
           </div>
           <button
             className="tk-clear-history-button"

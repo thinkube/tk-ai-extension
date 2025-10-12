@@ -76,7 +76,11 @@ class TKAIExtension(ExtensionApp):
         # Cell execution
         from .mcp.tools.execution import (
             ExecuteCellTool,
-            InsertAndExecuteCellTool
+            InsertAndExecuteCellTool,
+            ExecuteCellAsyncTool,
+            CheckExecutionStatusTool,
+            ExecuteAllCellsTool,
+            CheckAllCellsStatusTool
         )
 
         # Cell manipulation
@@ -112,6 +116,10 @@ class TKAIExtension(ExtensionApp):
         # Register execution tools
         register_tool(ExecuteCellTool())
         register_tool(InsertAndExecuteCellTool())
+        register_tool(ExecuteCellAsyncTool())
+        register_tool(CheckExecutionStatusTool())
+        register_tool(ExecuteAllCellsTool())
+        register_tool(CheckAllCellsStatusTool())
 
         # Register manipulation tools
         register_tool(InsertCellTool())
