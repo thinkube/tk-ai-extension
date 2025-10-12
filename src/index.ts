@@ -140,12 +140,13 @@ const plugin: JupyterFrontEndPlugin<void> = {
 
         try {
           await panel.context.ready;
-          const sharedModel = panel.content.model.sharedModel as any;
 
-          if (!sharedModel) {
+          if (!panel.content?.model?.sharedModel) {
             console.warn('tk-ai-extension: SharedModel not available');
             return;
           }
+
+          const sharedModel = panel.content.model.sharedModel as any;
 
           // First check if document_id is already set (collaboration extension did it)
           let documentId = sharedModel.getState?.('document_id');
