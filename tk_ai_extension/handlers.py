@@ -136,8 +136,8 @@ class MCPToolCallHandler(JupyterHandler):
                 self.finish({"error": f"Tool '{tool_name}' not found"})
                 return
 
-            # Execute the tool
-            tool_executor = tools[tool_name]['executor']
+            # Execute the tool using direct_executor (not the SDK-wrapped executor)
+            tool_executor = tools[tool_name]['direct_executor']
             result = await tool_executor(arguments)
 
             self.finish(result)

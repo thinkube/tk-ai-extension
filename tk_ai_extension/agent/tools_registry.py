@@ -90,7 +90,8 @@ def register_tool(tool_instance):
 
     _tool_instances[tool_instance.name] = {
         'instance': tool_instance,
-        'executor': decorated_tool
+        'executor': decorated_tool,  # For Claude Agent SDK
+        'direct_executor': tool_executor  # For direct HTTP API calls
     }
 
     return decorated_tool
