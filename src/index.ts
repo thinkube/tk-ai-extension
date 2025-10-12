@@ -161,13 +161,17 @@ const plugin: JupyterFrontEndPlugin<void> = {
             const path = panel.context.path;
             if (path) {
               try {
-                const response = await fetch(`/user/thinkube/api/tk-ai/fileid?path=${encodeURIComponent(path)}`);
+                // Use relative URL to work with JupyterHub's base URL
+                const apiUrl = `api/tk-ai/fileid?path=${encodeURIComponent(path)}`;
+                const response = await fetch(apiUrl, {
+                  credentials: 'same-origin' // Include cookies for authentication
+                });
                 if (response.ok) {
                   const data = await response.json();
                   documentId = data.document_id; // Format: json:notebook:{uuid}
                   console.log(`tk-ai-extension: Fetched document_id from backend: ${documentId}`);
                 } else {
-                  console.error(`tk-ai-extension: Failed to fetch file_id, status: ${response.status}. Manual execution will NOT work.`);
+                  console.error(`tk-ai-extension: Failed to fetch file_id from ${apiUrl}, status: ${response.status}. Manual execution will NOT work.`);
                   return; // Don't set a broken path-based ID
                 }
               } catch (fetchErr) {
