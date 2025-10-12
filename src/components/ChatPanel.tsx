@@ -95,7 +95,9 @@ export const ChatPanel = React.forwardRef<any, IChatPanelProps>(({ client, noteb
   const [isRestoring, setIsRestoring] = useState(false);
   const [isExecutingInBackground, setIsExecutingInBackground] = useState(false);
   const [executingCellIndex, setExecutingCellIndex] = useState<number | null>(null);
+  const [activeExecutionId, setActiveExecutionId] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const pollingIntervalRef = useRef<number | null>(null);
 
   // Expose methods via ref
   React.useImperativeHandle(ref, () => ({
@@ -110,6 +112,9 @@ export const ChatPanel = React.forwardRef<any, IChatPanelProps>(({ client, noteb
       console.log(`Background execution ${isExecuting ? 'started' : 'ended'}${cellIndex !== undefined ? ` at cell ${cellIndex}` : ''}`);
       setIsExecutingInBackground(isExecuting);
       setExecutingCellIndex(isExecuting && cellIndex !== undefined ? cellIndex : null);
+    },
+    startExecutionPolling: (executionId: string, cellIndex: number) => {
+      startExecutionPolling(executionId, cellIndex);
     }
   }));
 
@@ -219,6 +224,82 @@ export const ChatPanel = React.forwardRef<any, IChatPanelProps>(({ client, noteb
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
+  /**
+   * Extract execution_id from Claude's response if present
+   */
+  const extractExecutionId = (text: string): { executionId: string; cellIndex: number } | null => {
+    // Look for patterns like "execution_id": "uuid" or execution_id to poll results
+    const executionIdMatch = text.match(/execution_id['":\s]+([a-f0-9-]{36})/i);
+    const cellIndexMatch = text.match(/cell[_\s]+(\d+)|index[_\s]+(\d+)/i);
+
+    if (executionIdMatch) {
+      const cellIndex = cellIndexMatch ? parseInt(cellIndexMatch[1] || cellIndexMatch[2]) : -1;
+      return {
+        executionId: executionIdMatch[1],
+        cellIndex: cellIndex
+      };
+    }
+    return null;
+  };
+
+  /**
+   * Start polling for async execution status
+   */
+  const startExecutionPolling = async (executionId: string, cellIndex: number) => {
+    console.log(`Starting polling for execution ${executionId}, cell ${cellIndex}`);
+
+    // Clear any existing polling
+    if (pollingIntervalRef.current) {
+      clearInterval(pollingIntervalRef.current);
+    }
+
+    // Set UI indicator
+    setActiveExecutionId(executionId);
+    setIsExecutingInBackground(true);
+    setExecutingCellIndex(cellIndex);
+
+    // Poll every 2 seconds
+    const pollInterval = window.setInterval(async () => {
+      try {
+        const status = await client.checkExecutionStatus(executionId);
+
+        if (status.status === 'completed' || status.status === 'error') {
+          // Execution finished
+          console.log(`Execution ${executionId} finished with status: ${status.status}`);
+          clearInterval(pollInterval);
+          pollingIntervalRef.current = null;
+          setIsExecutingInBackground(false);
+          setExecutingCellIndex(null);
+          setActiveExecutionId(null);
+        } else {
+          // Still running - update cell index if available
+          if (status.cell_index !== undefined) {
+            setExecutingCellIndex(status.cell_index);
+          }
+        }
+      } catch (error) {
+        console.error('Error polling execution status:', error);
+        // On error, stop polling
+        clearInterval(pollInterval);
+        pollingIntervalRef.current = null;
+        setIsExecutingInBackground(false);
+        setExecutingCellIndex(null);
+        setActiveExecutionId(null);
+      }
+    }, 2000);
+
+    pollingIntervalRef.current = pollInterval;
+  };
+
+  // Cleanup polling on unmount
+  React.useEffect(() => {
+    return () => {
+      if (pollingIntervalRef.current) {
+        clearInterval(pollingIntervalRef.current);
+      }
+    };
+  }, []);
+
   const handleSend = async () => {
     if (!inputValue.trim() || isLoading) {
       return;
@@ -275,6 +356,13 @@ export const ChatPanel = React.forwardRef<any, IChatPanelProps>(({ client, noteb
       };
 
       setMessages(prev => [...prev, assistantMessage]);
+
+      // Check if response contains an execution_id (async execution started)
+      const executionInfo = extractExecutionId(cleanedResponse);
+      if (executionInfo) {
+        console.log('Detected async execution in response:', executionInfo);
+        startExecutionPolling(executionInfo.executionId, executionInfo.cellIndex);
+      }
     } catch (error) {
       const errorMessage: IChatMessage = {
         role: 'assistant',

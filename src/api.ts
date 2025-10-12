@@ -259,4 +259,40 @@ export class MCPClient {
       throw new Error(error.error || `Failed to clear conversation: ${response.statusText}`);
     }
   }
+
+  /**
+   * Check status of async cell execution
+   */
+  async checkExecutionStatus(executionId: string): Promise<{
+    success: boolean;
+    status: 'running' | 'completed' | 'error';
+    cell_index: number;
+    outputs?: any[];
+    error?: string;
+  }> {
+    const result = await this.executeTool('check_execution_status', {
+      execution_id: executionId
+    });
+
+    return result as any;
+  }
+
+  /**
+   * Check status of execute_all_cells operation
+   */
+  async checkAllCellsStatus(executionId: string): Promise<{
+    success: boolean;
+    status: 'running' | 'completed' | 'error';
+    current_cell_index: number | null;
+    completed_cells: number;
+    total_cells: number;
+    progress_percent: number;
+    error?: string;
+  }> {
+    const result = await this.executeTool('check_all_cells_status', {
+      execution_id: executionId
+    });
+
+    return result as any;
+  }
 }
