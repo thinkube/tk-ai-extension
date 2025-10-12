@@ -140,19 +140,36 @@ const plugin: JupyterFrontEndPlugin<void> = {
 
         try {
           await panel.context.ready;
-          const path = panel.context.path;
+          const sharedModel = panel.content.model.sharedModel as any;
 
-          if (path && panel.content?.model?.sharedModel) {
-            // Build document_id matching server expectations: json:notebook:{path}
-            const documentId = `json:notebook:${path}`;
-            const sharedModel = panel.content.model.sharedModel as any;
+          if (!sharedModel) {
+            console.warn('tk-ai-extension: SharedModel not available');
+            return;
+          }
 
-            if (typeof sharedModel.setState === 'function') {
-              sharedModel.setState('document_id', documentId);
-              console.log(`tk-ai-extension: Set document_id for notebook: ${documentId}`);
-            } else {
-              console.warn('tk-ai-extension: SharedModel does not have setState method', sharedModel);
+          // First check if document_id is already set (collaboration extension did it)
+          let documentId = sharedModel.getState?.('document_id');
+
+          if (!documentId) {
+            // Try to get documentId property directly (from collaboration extension)
+            documentId = sharedModel.documentId;
+          }
+
+          if (!documentId) {
+            // Fallback: construct from path (though server expects UUID, this is better than nothing)
+            const path = panel.context.path;
+            if (path) {
+              documentId = `json:notebook:${path}`;
+              console.warn(`tk-ai-extension: Using path-based document_id fallback: ${documentId}`);
             }
+          }
+
+          if (documentId && typeof sharedModel.setState === 'function') {
+            sharedModel.setState('document_id', documentId);
+            console.log(`tk-ai-extension: Set document_id for notebook: ${documentId}`);
+            console.log(`tk-ai-extension: documentId property:`, sharedModel.documentId);
+          } else {
+            console.error('tk-ai-extension: Could not determine document_id or setState not available');
           }
         } catch (err) {
           console.error('tk-ai-extension: Error setting document_id:', err);
