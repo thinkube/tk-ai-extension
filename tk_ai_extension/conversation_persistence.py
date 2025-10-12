@@ -29,8 +29,11 @@ async def save_conversation_to_notebook(notebook_path: str, messages: List[Dict[
     try:
         from .mcp.tools.utils import get_jupyter_ydoc, get_notebook_path
 
+        logger.info(f"save_conversation called with notebook_path: {notebook_path}")
+
         # Get absolute path
         abs_path = get_notebook_path(serverapp, notebook_path)
+        logger.info(f"Converted to abs_path: {abs_path}")
 
         # Get file_id for YDoc lookup
         file_id_manager = serverapp.web_app.settings.get("file_id_manager")
@@ -39,6 +42,7 @@ async def save_conversation_to_notebook(notebook_path: str, messages: List[Dict[
             return False
 
         file_id = file_id_manager.get_id(abs_path)
+        logger.info(f"Got file_id: {file_id}")
 
         # Get YDoc
         ydoc = await get_jupyter_ydoc(serverapp, file_id)
