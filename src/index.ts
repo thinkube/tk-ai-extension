@@ -148,45 +148,45 @@ const plugin: JupyterFrontEndPlugin<void> = {
 
           const sharedModel = panel.content.model.sharedModel as any;
 
-          // First check if document_id is already set (collaboration extension did it)
-          let documentId = sharedModel.getState?.('document_id');
-
-          if (!documentId) {
-            // Try to get documentId property directly (from collaboration extension)
-            documentId = sharedModel.documentId;
+          // ALWAYS fetch the correct UUID-based document_id from backend
+          // (collaboration extension may have set a wrong path-based value)
+          const path = panel.context.path;
+          if (!path) {
+            console.error('tk-ai-extension: No path available, cannot fetch file_id');
+            return;
           }
 
-          if (!documentId) {
-            // Fetch file_id UUID from backend API
-            const path = panel.context.path;
-            if (path) {
-              try {
-                // Use relative URL to work with JupyterHub's base URL
-                const apiUrl = `api/tk-ai/fileid?path=${encodeURIComponent(path)}`;
-                const response = await fetch(apiUrl, {
-                  credentials: 'same-origin' // Include cookies for authentication
-                });
-                if (response.ok) {
-                  const data = await response.json();
-                  documentId = data.document_id; // Format: json:notebook:{uuid}
-                  console.log(`tk-ai-extension: Fetched document_id from backend: ${documentId}`);
-                } else {
-                  console.error(`tk-ai-extension: Failed to fetch file_id from ${apiUrl}, status: ${response.status}. Manual execution will NOT work.`);
-                  return; // Don't set a broken path-based ID
-                }
-              } catch (fetchErr) {
-                console.error('tk-ai-extension: Error fetching file_id:', fetchErr, '. Manual execution will NOT work.');
-                return; // Don't set a broken path-based ID
-              }
+          let documentId: string;
+          try {
+            // Use relative URL to work with JupyterHub's base URL
+            const apiUrl = `api/tk-ai/fileid?path=${encodeURIComponent(path)}`;
+            const response = await fetch(apiUrl, {
+              credentials: 'same-origin' // Include cookies for authentication
+            });
+            if (response.ok) {
+              const data = await response.json();
+              documentId = data.document_id; // Format: json:notebook:{uuid}
+              console.log(`tk-ai-extension: Fetched document_id from backend: ${documentId}`);
             } else {
-              console.error('tk-ai-extension: No path available, cannot fetch file_id');
+              console.error(`tk-ai-extension: Failed to fetch file_id from ${apiUrl}, status: ${response.status}. Manual execution will NOT work.`);
               return;
             }
+          } catch (fetchErr) {
+            console.error('tk-ai-extension: Error fetching file_id:', fetchErr, '. Manual execution will NOT work.');
+            return;
           }
 
           if (documentId && typeof sharedModel.setState === 'function') {
             sharedModel.setState('document_id', documentId);
             console.log(`tk-ai-extension: Set document_id for notebook: ${documentId}`);
+
+            // VERIFY it was actually persisted
+            const verifyDocId = sharedModel.getState?.('document_id');
+            if (verifyDocId === documentId) {
+              console.log(`tk-ai-extension: VERIFIED document_id persisted: ${verifyDocId}`);
+            } else {
+              console.error(`tk-ai-extension: FAILED to persist document_id! Set: ${documentId}, Read back: ${verifyDocId}`);
+            }
           } else {
             console.error('tk-ai-extension: Could not determine document_id or setState not available');
           }
