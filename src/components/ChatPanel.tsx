@@ -255,6 +255,7 @@ export const ChatPanel = React.forwardRef<any, IChatPanelProps>(({ client, noteb
 
     // Set UI indicator
     activeExecutionIdRef.current = executionId;
+    console.log(`Setting background execution indicator: true, cell index: ${cellIndex}`);
     setIsExecutingInBackground(true);
     setExecutingCellIndex(cellIndex);
 
@@ -407,6 +408,9 @@ export const ChatPanel = React.forwardRef<any, IChatPanelProps>(({ client, noteb
   const formatTimestamp = (date: Date) => {
     return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   };
+
+  // Debug logging for indicator state
+  console.log(`ChatPanel render - isExecutingInBackground: ${isExecutingInBackground}, cellIndex: ${executingCellIndex}`);
 
   return (
     <div className="tk-chat-panel">
