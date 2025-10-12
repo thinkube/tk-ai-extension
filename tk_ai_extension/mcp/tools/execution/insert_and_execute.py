@@ -145,19 +145,15 @@ class InsertAndExecuteCellTool(BaseTool):
                     "success": False
                 }
 
-            # Insert new code cell - use minimal dict and let create_ycell() add all metadata
+            # Insert new code cell with source included from the start
             new_cell = {
                 "cell_type": "code",
-                "source": "",
+                "source": code,  # Include source in initial cell dict
                 "execution_count": None,  # Required for code cells
             }
-            # Create proper CRDT cell object before inserting
+            # Create proper CRDT cell object with source already set
             ycell = ydoc.create_ycell(new_cell)
             ydoc.ycells.insert(cell_index, ycell)
-
-            # Set source after insertion (matches jupyter-mcp-server pattern)
-            if code:
-                ycell["source"] = code
 
             # Get the newly inserted cell to retrieve its ID
             inserted_cell_id = ycell.get("id")
