@@ -20,6 +20,7 @@ import { ToolbarButton } from '@jupyterlab/apputils';
 
 import { ChatWidget } from './widget';
 import { MCPClient } from './api';
+import { ServerConnection } from '@jupyterlab/services';
 
 /**
  * The command IDs
@@ -158,11 +159,12 @@ const plugin: JupyterFrontEndPlugin<void> = {
 
           let documentId: string;
           try {
-            // Use relative URL to work with JupyterHub's base URL
-            const apiUrl = `api/tk-ai/fileid?path=${encodeURIComponent(path)}`;
-            const response = await fetch(apiUrl, {
-              credentials: 'same-origin' // Include cookies for authentication
-            });
+            // Use ServerConnection for authenticated requests
+            const settings = ServerConnection.makeSettings();
+            const apiUrl = `${settings.baseUrl}api/tk-ai/fileid?path=${encodeURIComponent(path)}`;
+
+            const response = await ServerConnection.makeRequest(apiUrl, {}, settings);
+
             if (response.ok) {
               const data = await response.json();
               documentId = data.document_id; // Format: json:notebook:{uuid}

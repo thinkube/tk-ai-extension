@@ -395,6 +395,7 @@ class SessionCloseHandler(JupyterHandler):
 class FileIdHandler(JupyterHandler):
     """Get file_id UUID for a given notebook path."""
 
+    @web.authenticated
     async def get(self):
         """GET /api/tk-ai/fileid?path=notebook/path.ipynb
 
