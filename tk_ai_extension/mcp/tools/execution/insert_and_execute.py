@@ -3,12 +3,12 @@
 
 """MCP tool for inserting and executing a cell in one operation."""
 
-import nbformat
-from nbformat.v4 import new_code_cell
-from pathlib import Path
+import logging
 from typing import Any, Optional, Dict
 from ..base import BaseTool
 from ..utils import get_jupyter_ydoc, get_notebook_path, execute_code_with_timeout
+
+logger = logging.getLogger(__name__)
 
 
 class InsertAndExecuteCellTool(BaseTool):
@@ -62,7 +62,7 @@ class InsertAndExecuteCellTool(BaseTool):
         serverapp: Optional[Any] = None,
         **kwargs
     ) -> Dict[str, Any]:
-        """Insert and execute a cell.
+        """Insert and execute a cell using YDoc.
 
         Args:
             contents_manager: Jupyter contents manager
@@ -102,7 +102,12 @@ class InsertAndExecuteCellTool(BaseTool):
 
         try:
             # Get absolute path
-            serverapp = getattr(contents_manager, 'parent', None)
+            if not serverapp:
+                return {
+                    "error": "ServerApp not available - cannot access YDoc",
+                    "success": False
+                }
+
             abs_path = get_notebook_path(serverapp, notebook_path)
 
             # Check if kernel exists
@@ -113,95 +118,59 @@ class InsertAndExecuteCellTool(BaseTool):
                     "success": False
                 }
 
-            # Get YDoc via jupyter-server-ydoc extension (same as jupyter-server-nbmodel does)
-            if serverapp:
-                file_id_manager = serverapp.web_app.settings.get("file_id_manager")
-                if file_id_manager:
-                    file_id = file_id_manager.get_id(abs_path)
-
-                    # Get YDoc via jupyter-server-ydoc extension
-                    ydoc_extensions = serverapp.extension_manager.extension_apps.get("jupyter_server_ydoc", set())
-                    if not ydoc_extensions:
-                        return {
-                            "error": "jupyter-server-ydoc extension not found",
-                            "success": False
-                        }
-
-                    ydoc_extension = next(iter(ydoc_extensions))
-                    document_id = f"json:notebook:{file_id}"
-
-                    # Get the YNotebook document
-                    ydoc = await ydoc_extension.get_document(room_id=document_id, copy=False)
-
-                    if ydoc is None:
-                        return {
-                            "error": f"Document {document_id} not found",
-                            "success": False
-                        }
-
-                    # Validate cell index
-                    if cell_index < 0 or cell_index > len(ydoc.ycells):
-                        return {
-                            "error": f"Cell index {cell_index} out of range. Notebook has {len(ydoc.ycells)} cells",
-                            "success": False
-                        }
-
-                    # Insert new code cell - use minimal dict and let create_ycell() add all metadata
-                    new_cell = {
-                        "cell_type": "code",
-                        "source": "",
-                        "execution_count": None,  # Required for code cells
-                    }
-                    # Create proper CRDT cell object before inserting
-                    ycell = ydoc.create_ycell(new_cell)
-                    ydoc.ycells.insert(cell_index, ycell)
-
-                    # Set source after insertion (matches jupyter-mcp-server pattern)
-                    if code:
-                        ycell["source"] = code
-
-                    # Get the newly inserted cell to retrieve its ID
-                    inserted_cell_id = ycell.get("id")
-
-                    # Execute the cell with RTC metadata
-                    outputs = await execute_code_with_timeout(
-                        kernel_manager,
-                        kernel_id,
-                        code,
-                        timeout_seconds,
-                        serverapp=serverapp,
-                        document_id=document_id,
-                        cell_id=inserted_cell_id
-                    )
-
-                    return {
-                        "success": True,
-                        "cell_index": cell_index,
-                        "outputs": outputs,
-                        "message": f"Cell inserted at index {cell_index} and executed"
-                    }
-
-            # Fallback to file operations
-            with open(abs_path, 'r', encoding='utf-8') as f:
-                notebook = nbformat.read(f, as_version=4)
-
-            if cell_index < 0 or cell_index > len(notebook.cells):
+            # Get file_id for YDoc lookup
+            file_id_manager = serverapp.web_app.settings.get("file_id_manager")
+            if not file_id_manager:
                 return {
-                    "error": f"Cell index {cell_index} out of range. Notebook has {len(notebook.cells)} cells",
+                    "error": "file_id_manager not available",
                     "success": False
                 }
 
-            # Insert new cell
-            new_cell = new_code_cell(code)
-            notebook.cells.insert(cell_index, new_cell)
+            file_id = file_id_manager.get_id(abs_path)
+            ydoc = await get_jupyter_ydoc(serverapp, file_id)
 
-            # Save notebook
-            with open(abs_path, 'w', encoding='utf-8') as f:
-                nbformat.write(notebook, f)
+            if not ydoc:
+                return {
+                    "error": f"YDoc not available for {notebook_path}. The notebook must be open in JupyterLab with collaborative mode enabled.",
+                    "success": False
+                }
 
-            # Execute the cell
+            # Get document_id for RTC integration
+            document_id = f"json:notebook:{file_id}"
+
+            # Validate cell index
+            if cell_index < 0 or cell_index > len(ydoc.ycells):
+                return {
+                    "error": f"Cell index {cell_index} out of range. Notebook has {len(ydoc.ycells)} cells",
+                    "success": False
+                }
+
+            # Insert new code cell - use minimal dict and let create_ycell() add all metadata
+            new_cell = {
+                "cell_type": "code",
+                "source": "",
+                "execution_count": None,  # Required for code cells
+            }
+            # Create proper CRDT cell object before inserting
+            ycell = ydoc.create_ycell(new_cell)
+            ydoc.ycells.insert(cell_index, ycell)
+
+            # Set source after insertion (matches jupyter-mcp-server pattern)
+            if code:
+                ycell["source"] = code
+
+            # Get the newly inserted cell to retrieve its ID
+            inserted_cell_id = ycell.get("id")
+
+            # Execute the cell with RTC metadata
             outputs = await execute_code_with_timeout(
-                kernel_manager, kernel_id, code, timeout_seconds, serverapp=serverapp
+                kernel_manager,
+                kernel_id,
+                code,
+                timeout_seconds,
+                serverapp=serverapp,
+                document_id=document_id,
+                cell_id=inserted_cell_id
             )
 
             return {
@@ -212,6 +181,7 @@ class InsertAndExecuteCellTool(BaseTool):
             }
 
         except Exception as e:
+            logger.error(f"Failed to insert and execute cell: {e}", exc_info=True)
             return {
                 "success": False,
                 "error": str(e)

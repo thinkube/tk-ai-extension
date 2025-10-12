@@ -1,7 +1,7 @@
 # Copyright 2025 Alejandro Martínez Corriá and the Thinkube contributors
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Helper functions for YDoc operations with file fallback."""
+"""Helper functions for YDoc operations - NO FALLBACKS."""
 
 import logging
 from pathlib import Path
@@ -19,12 +19,15 @@ async def get_jupyter_ydoc(serverapp: Any, file_id: str) -> Optional[Any]:
 
     Returns:
         YNotebook document if available, None otherwise
+
+    Raises:
+        Logs ERROR if YDoc is not available (not debug!)
     """
     try:
         # Get ywebsocket_server from YDocExtension instance
         ydoc_extensions = serverapp.extension_manager.extension_apps.get("jupyter_server_ydoc", set())
         if not ydoc_extensions:
-            logger.debug("jupyter_server_ydoc extension not loaded")
+            logger.error("jupyter_server_ydoc extension not loaded - collaborative mode not enabled")
             return None
 
         ydoc_ext = next(iter(ydoc_extensions))
@@ -35,14 +38,14 @@ async def get_jupyter_ydoc(serverapp: Any, file_id: str) -> Optional[Any]:
         if ywebsocket_server.room_exists(room_id):
             yroom = await ywebsocket_server.get_room(room_id)
             notebook = yroom._document  # DocumentRoom stores YNotebook as _document attribute
-            logger.debug(f"Got YDoc for {file_id}")
+            logger.info(f"Got YDoc for {file_id}")
             return notebook
         else:
-            logger.debug(f"No room for {room_id}")
+            logger.error(f"No YDoc room found for {room_id} - notebook must be open in JupyterLab")
+            return None
     except Exception as e:
-        logger.debug(f"Failed to get YDoc: {e}")
-
-    return None
+        logger.error(f"Failed to get YDoc: {e}", exc_info=True)
+        return None
 
 
 def get_notebook_path(serverapp: Any, relative_path: str) -> str:

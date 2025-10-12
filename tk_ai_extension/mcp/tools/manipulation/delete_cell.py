@@ -3,11 +3,12 @@
 
 """MCP tool for deleting cells from notebooks."""
 
-import nbformat
-from pathlib import Path
+import logging
 from typing import Any, Optional, Dict
 from ..base import BaseTool
 from ..utils import get_jupyter_ydoc, get_notebook_path
+
+logger = logging.getLogger(__name__)
 
 
 class DeleteCellTool(BaseTool):
@@ -45,7 +46,7 @@ class DeleteCellTool(BaseTool):
         kernel_spec_manager: Optional[Any] = None,
         **kwargs
     ) -> Dict[str, Any]:
-        """Delete a cell.
+        """Delete a cell using YDoc.
 
         Args:
             contents_manager: Jupyter contents manager
@@ -69,48 +70,40 @@ class DeleteCellTool(BaseTool):
         try:
             # Get absolute path
             serverapp = getattr(contents_manager, 'parent', None)
+            if not serverapp:
+                return {
+                    "error": "ServerApp not available - cannot access YDoc",
+                    "success": False
+                }
+
             abs_path = get_notebook_path(serverapp, notebook_path)
 
             # Get file_id for YDoc lookup
-            if serverapp:
-                file_id_manager = serverapp.web_app.settings.get("file_id_manager")
-                if file_id_manager:
-                    file_id = file_id_manager.get_id(abs_path)
-                    ydoc = await get_jupyter_ydoc(serverapp, file_id)
-
-                    if ydoc:
-                        # Use YDoc for collaborative editing
-                        if cell_index < 0 or cell_index >= len(ydoc.ycells):
-                            return {
-                                "error": f"Cell index {cell_index} out of range. Notebook has {len(ydoc.ycells)} cells",
-                                "success": False
-                            }
-
-                        # Delete cell
-                        del ydoc.ycells[cell_index]
-
-                        return {
-                            "success": True,
-                            "cell_index": cell_index,
-                            "message": f"Cell at index {cell_index} deleted successfully"
-                        }
-
-            # Fallback to file operations
-            with open(abs_path, 'r', encoding='utf-8') as f:
-                notebook = nbformat.read(f, as_version=4)
-
-            if cell_index < 0 or cell_index >= len(notebook.cells):
+            file_id_manager = serverapp.web_app.settings.get("file_id_manager")
+            if not file_id_manager:
                 return {
-                    "error": f"Cell index {cell_index} out of range. Notebook has {len(notebook.cells)} cells",
+                    "error": "file_id_manager not available",
+                    "success": False
+                }
+
+            file_id = file_id_manager.get_id(abs_path)
+            ydoc = await get_jupyter_ydoc(serverapp, file_id)
+
+            if not ydoc:
+                return {
+                    "error": f"YDoc not available for {notebook_path}. The notebook must be open in JupyterLab with collaborative mode enabled.",
+                    "success": False
+                }
+
+            # Use YDoc for collaborative editing
+            if cell_index < 0 or cell_index >= len(ydoc.ycells):
+                return {
+                    "error": f"Cell index {cell_index} out of range. Notebook has {len(ydoc.ycells)} cells",
                     "success": False
                 }
 
             # Delete cell
-            del notebook.cells[cell_index]
-
-            # Save notebook
-            with open(abs_path, 'w', encoding='utf-8') as f:
-                nbformat.write(notebook, f)
+            del ydoc.ycells[cell_index]
 
             return {
                 "success": True,
@@ -119,6 +112,7 @@ class DeleteCellTool(BaseTool):
             }
 
         except Exception as e:
+            logger.error(f"Failed to delete cell: {e}", exc_info=True)
             return {
                 "success": False,
                 "error": str(e)
