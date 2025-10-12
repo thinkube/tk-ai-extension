@@ -95,9 +95,9 @@ export const ChatPanel = React.forwardRef<any, IChatPanelProps>(({ client, noteb
   const [isRestoring, setIsRestoring] = useState(false);
   const [isExecutingInBackground, setIsExecutingInBackground] = useState(false);
   const [executingCellIndex, setExecutingCellIndex] = useState<number | null>(null);
-  const [activeExecutionId, setActiveExecutionId] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const pollingIntervalRef = useRef<number | null>(null);
+  const activeExecutionIdRef = useRef<string | null>(null);
 
   // Expose methods via ref
   React.useImperativeHandle(ref, () => ({
@@ -254,7 +254,7 @@ export const ChatPanel = React.forwardRef<any, IChatPanelProps>(({ client, noteb
     }
 
     // Set UI indicator
-    setActiveExecutionId(executionId);
+    activeExecutionIdRef.current = executionId;
     setIsExecutingInBackground(true);
     setExecutingCellIndex(cellIndex);
 
@@ -268,9 +268,9 @@ export const ChatPanel = React.forwardRef<any, IChatPanelProps>(({ client, noteb
           console.log(`Execution ${executionId} finished with status: ${status.status}`);
           clearInterval(pollInterval);
           pollingIntervalRef.current = null;
+          activeExecutionIdRef.current = null;
           setIsExecutingInBackground(false);
           setExecutingCellIndex(null);
-          setActiveExecutionId(null);
         } else {
           // Still running - update cell index if available
           if (status.cell_index !== undefined) {
@@ -282,9 +282,9 @@ export const ChatPanel = React.forwardRef<any, IChatPanelProps>(({ client, noteb
         // On error, stop polling
         clearInterval(pollInterval);
         pollingIntervalRef.current = null;
+        activeExecutionIdRef.current = null;
         setIsExecutingInBackground(false);
         setExecutingCellIndex(null);
-        setActiveExecutionId(null);
       }
     }, 2000);
 
