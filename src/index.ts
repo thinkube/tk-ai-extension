@@ -167,17 +167,16 @@ const plugin: JupyterFrontEndPlugin<void> = {
                   documentId = data.document_id; // Format: json:notebook:{uuid}
                   console.log(`tk-ai-extension: Fetched document_id from backend: ${documentId}`);
                 } else {
-                  console.warn(`tk-ai-extension: Failed to fetch file_id, status: ${response.status}`);
-                  // Fallback: construct from path
-                  documentId = `json:notebook:${path}`;
-                  console.warn(`tk-ai-extension: Using path-based document_id fallback: ${documentId}`);
+                  console.error(`tk-ai-extension: Failed to fetch file_id, status: ${response.status}. Manual execution will NOT work.`);
+                  return; // Don't set a broken path-based ID
                 }
               } catch (fetchErr) {
-                console.error('tk-ai-extension: Error fetching file_id:', fetchErr);
-                // Fallback: construct from path
-                documentId = `json:notebook:${path}`;
-                console.warn(`tk-ai-extension: Using path-based document_id fallback: ${documentId}`);
+                console.error('tk-ai-extension: Error fetching file_id:', fetchErr, '. Manual execution will NOT work.');
+                return; // Don't set a broken path-based ID
               }
+            } else {
+              console.error('tk-ai-extension: No path available, cannot fetch file_id');
+              return;
             }
           }
 
