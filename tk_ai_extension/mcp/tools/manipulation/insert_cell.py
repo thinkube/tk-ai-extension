@@ -121,23 +121,20 @@ class InsertCellTool(BaseTool):
                     "success": False
                 }
 
-            # Insert new cell - use minimal dict and let create_ycell() add all metadata
+            # Create new cell dict with source content
+            # create_ycell() will convert source to Text object automatically
             new_cell = {
                 "cell_type": cell_type,
-                "source": "",
+                "source": source,
             }
 
             # Code cells require execution_count (null for unexecuted)
             if cell_type == "code":
                 new_cell["execution_count"] = None
 
-            # Create proper CRDT cell object before inserting
+            # Create proper CRDT cell object
             ycell = ydoc.create_ycell(new_cell)
             ydoc.ycells.insert(cell_index, ycell)
-
-            # Set source after insertion (matches jupyter-mcp-server pattern)
-            if source:
-                ycell["source"] = source
 
             return {
                 "success": True,
