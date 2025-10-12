@@ -45,6 +45,47 @@ export const ChatPanel = React.forwardRef<any, IChatPanelProps>(({ client, noteb
 
     return null;
   };
+
+  /**
+   * Get cell selection info from the currently active notebook
+   */
+  const getCellSelectionInfo = (): { activeCellIndex: number; selectedCellIndices: number[] } | null => {
+    if (!labShell) {
+      return null;
+    }
+
+    const current = labShell.currentWidget;
+    if (!current) {
+      return null;
+    }
+
+    // Check if it's a notebook panel
+    const notebookPanel = current as any;
+    if (!notebookPanel.content?.activeCellIndex) {
+      return null;
+    }
+
+    try {
+      const activeCellIndex = notebookPanel.content.activeCellIndex;
+      const selectedCells = notebookPanel.content.selectedCells || [];
+
+      // Get indices of all selected cells
+      const selectedCellIndices: number[] = [];
+      const widgets = notebookPanel.content.widgets || [];
+
+      for (let i = 0; i < widgets.length; i++) {
+        const widget = widgets[i];
+        if (selectedCells.includes(widget)) {
+          selectedCellIndices.push(i);
+        }
+      }
+
+      return { activeCellIndex, selectedCellIndices };
+    } catch (error) {
+      console.warn('Failed to get cell selection info:', error);
+      return null;
+    }
+  };
   const [messages, setMessages] = useState<IChatMessage[]>([]);
   const [inputValue, setInputValue] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -176,9 +217,34 @@ export const ChatPanel = React.forwardRef<any, IChatPanelProps>(({ client, noteb
       return;
     }
 
+    // Get cell selection info
+    const selectionInfo = getCellSelectionInfo();
+    let enhancedMessage = inputValue;
+
+    // Automatically prepend cell selection context if available
+    if (selectionInfo) {
+      const { activeCellIndex, selectedCellIndices } = selectionInfo;
+
+      // Build context string
+      let contextPrefix = '';
+
+      if (selectedCellIndices.length > 1) {
+        // Multiple cells selected
+        contextPrefix = `[Context: Multiple cells selected - indices ${selectedCellIndices.join(', ')}. Active cell is index ${activeCellIndex}]\n\n`;
+      } else if (selectedCellIndices.length === 1) {
+        // Single cell selected
+        contextPrefix = `[Context: Cell at index ${activeCellIndex} is selected]\n\n`;
+      } else {
+        // No explicit selection, but there's an active cell
+        contextPrefix = `[Context: Active cell is at index ${activeCellIndex}]\n\n`;
+      }
+
+      enhancedMessage = contextPrefix + inputValue;
+    }
+
     const userMessage: IChatMessage = {
       role: 'user',
-      content: inputValue,
+      content: inputValue,  // Show original message to user
       timestamp: new Date()
     };
 
@@ -189,7 +255,8 @@ export const ChatPanel = React.forwardRef<any, IChatPanelProps>(({ client, noteb
     try {
       // Get the current notebook path at the time of sending
       const activeNotebookPath = getCurrentNotebookPath();
-      const response = await client.sendMessage(inputValue, activeNotebookPath);
+      // Send enhanced message with context to Claude
+      const response = await client.sendMessage(enhancedMessage, activeNotebookPath);
 
       // Replace double newlines with single newlines and trim trailing newlines
       const cleanedResponse = response.replace(/\n\n+/g, '\n').replace(/\n+$/, '');
