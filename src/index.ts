@@ -58,7 +58,7 @@ class ThinkyButtonExtension
         if (!this.widgetRef.widget || this.widgetRef.widget.isDisposed) {
           this.widgetRef.widget = new ChatWidget(this.app.shell, notebookPath);
           this.widgetRef.widget.id = 'tk-ai-chat';
-          this.widgetRef.widget.title.label = 'tk-ai Chat';
+          this.widgetRef.widget.title.label = 'Thinky';
           this.widgetRef.widget.title.closable = true;
         } else {
           // Update context for existing widget
@@ -227,13 +227,13 @@ const plugin: JupyterFrontEndPlugin<void> = {
 
     // Command to open chat (keep for programmatic access)
     app.commands.addCommand(CommandIDs.openChat, {
-      label: 'Open tk-ai Chat',
-      caption: 'Open the tk-ai chat interface',
+      label: 'Open Thinky',
+      caption: 'Open Thinky AI Assistant',
       execute: () => {
         if (!widgetRef.widget || widgetRef.widget.isDisposed) {
           widgetRef.widget = new ChatWidget(app.shell);
           widgetRef.widget.id = 'tk-ai-chat';
-          widgetRef.widget.title.label = 'tk-ai Chat';
+          widgetRef.widget.title.label = 'Thinky';
           widgetRef.widget.title.closable = true;
         }
 
@@ -245,14 +245,8 @@ const plugin: JupyterFrontEndPlugin<void> = {
       }
     });
 
-    // Add to launcher (keep for users who want to open without a notebook)
-    if (launcher) {
-      launcher.add({
-        command: CommandIDs.openChat,
-        category: 'tk-ai',
-        rank: 0
-      });
-    }
+    // Launcher intentionally removed - Thinky should be opened via notebook toolbar button
+    // Users should click the "🤖 Thinky" button in the notebook toolbar instead
 
     // Load settings if available
     if (settingRegistry) {
