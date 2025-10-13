@@ -279,6 +279,7 @@ export const ChatPanel = React.forwardRef<any, IChatPanelProps>(({ client, noteb
     const pollInterval = window.setInterval(async () => {
       try {
         const status = await client.checkExecutionStatus(executionId);
+        console.log(`Polling execution ${executionId}, received status:`, JSON.stringify(status, null, 2));
 
         if (status.status === 'completed' || status.status === 'error') {
           // Execution finished
@@ -290,6 +291,7 @@ export const ChatPanel = React.forwardRef<any, IChatPanelProps>(({ client, noteb
           setExecutingCellIndex(null);
         } else {
           // Still running - update cell index if available
+          console.log(`Execution ${executionId} still running with status: ${status.status}`);
           if (status.cell_index !== undefined) {
             setExecutingCellIndex(status.cell_index);
           }

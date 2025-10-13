@@ -274,6 +274,15 @@ export class MCPClient {
       execution_id: executionId
     });
 
+    // Tool results come wrapped in content array with stringified text
+    // Need to parse the actual dict from the text field
+    if (result.content && result.content[0] && result.content[0].text) {
+      const textContent = result.content[0].text;
+      // Parse the Python dict string (uses single quotes, convert to JSON)
+      const jsonContent = textContent.replace(/'/g, '"').replace(/None/g, 'null').replace(/True/g, 'true').replace(/False/g, 'false');
+      return JSON.parse(jsonContent);
+    }
+
     return result as any;
   }
 
@@ -292,6 +301,15 @@ export class MCPClient {
     const result = await this.executeTool('check_all_cells_status', {
       execution_id: executionId
     });
+
+    // Tool results come wrapped in content array with stringified text
+    // Need to parse the actual dict from the text field
+    if (result.content && result.content[0] && result.content[0].text) {
+      const textContent = result.content[0].text;
+      // Parse the Python dict string (uses single quotes, convert to JSON)
+      const jsonContent = textContent.replace(/'/g, '"').replace(/None/g, 'null').replace(/True/g, 'true').replace(/False/g, 'false');
+      return JSON.parse(jsonContent);
+    }
 
     return result as any;
   }
