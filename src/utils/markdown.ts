@@ -25,13 +25,13 @@ export function renderMarkdown(markdown: string): string {
   }
 
   try {
-    // Use synchronous parse
-    const result = marked(markdown);
-    let html = typeof result === 'string' ? result : String(result);
+    // Pre-process markdown: replace triple+ newlines with double newlines
+    // This reduces excessive spacing while preserving paragraph structure
+    let processed = markdown.replace(/\n{3,}/g, '\n\n');
 
-    // Post-process HTML to remove excessive spacing between paragraphs
-    // Replace multiple consecutive paragraph breaks with single breaks
-    html = html.replace(/(<\/p>\s*<p>)+/g, '</p><p>');
+    // Use synchronous parse
+    const result = marked(processed);
+    let html = typeof result === 'string' ? result : String(result);
 
     // Remove trailing whitespace and empty paragraphs at the end
     html = html.replace(/(<p>\s*<\/p>|\s)+$/g, '');
