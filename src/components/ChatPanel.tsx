@@ -365,19 +365,17 @@ export const ChatPanel = React.forwardRef<any, IChatPanelProps>(({ client, noteb
       // Send enhanced message with context to Claude
       const response = await client.sendMessage(enhancedMessage, activeNotebookPath);
 
-      // Replace double newlines with single newlines and trim trailing newlines
-      const cleanedResponse = response.replace(/\n\n+/g, '\n').replace(/\n+$/, '');
-
+      // Don't modify raw markdown - let renderMarkdown() handle spacing cleanup in HTML
       const assistantMessage: IChatMessage = {
         role: 'assistant',
-        content: cleanedResponse,
+        content: response,
         timestamp: new Date()
       };
 
       setMessages(prev => [...prev, assistantMessage]);
 
       // Check if response contains an execution_id (async execution started)
-      const executionInfo = extractExecutionId(cleanedResponse);
+      const executionInfo = extractExecutionId(response);
       if (executionInfo) {
         console.log('Detected async execution in response:', executionInfo);
         startExecutionPolling(executionInfo.executionId, executionInfo.cellIndex);
