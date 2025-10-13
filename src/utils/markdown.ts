@@ -25,9 +25,9 @@ export function renderMarkdown(markdown: string): string {
   }
 
   try {
-    // Pre-process markdown: replace triple+ newlines with double newlines
-    // This reduces excessive spacing while preserving paragraph structure
-    let processed = markdown.replace(/\n{3,}/g, '\n\n');
+    // Pre-process markdown: replace all double+ newlines with single newlines
+    // This eliminates excessive spacing between sections
+    let processed = markdown.replace(/\n\n+/g, '\n');
 
     // Use synchronous parse
     const result = marked(processed);
