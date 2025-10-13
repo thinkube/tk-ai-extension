@@ -245,7 +245,7 @@
 .tk-message-content {
   padding: 12px 14px;
   border-radius: 12px;
-  line-height: 1.0;
+  line-height: 1.5;
   white-space: pre-wrap;
   word-wrap: break-word;
   font-size: 13px;
@@ -264,9 +264,9 @@
   border: 1px solid var(--tk-border);
 }
 
-/* Markdown content styling - compact spacing */
+/* Markdown content styling - reduce excessive spacing */
 .tk-message-content p {
-  margin: 0;
+  margin: 0.3em 0;
 }
 
 .tk-message-content p:first-child {
@@ -284,7 +284,7 @@
 
 .tk-message-content ul,
 .tk-message-content ol {
-  margin: 0;
+  margin: 0.5em 0;
   padding-left: 1.5em;
 }
 
