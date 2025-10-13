@@ -363,17 +363,12 @@ class ExecuteCellTool(BaseTool):
             # Clean up
             client.stop_channels()
 
-            # If no execution_count was captured, use 1 as fallback (shouldn't happen)
+            # Kernel must return execution_count - fail if it doesn't
             if execution_count is None:
-                execution_count = 1
-                serverapp.log.warning(f"No execution_count in kernel response, using fallback: {execution_count}")
+                raise RuntimeError("Kernel did not return execution_count in shell reply")
 
             return (execution_count, outputs)
 
         except Exception as e:
             serverapp.log.error(f"Error executing code: {e}", exc_info=True)
-            return (1, [{
-                "output_type": "stream",
-                "name": "stderr",
-                "text": f"[ERROR: {str(e)}]"
-            }])
+            raise
