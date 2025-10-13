@@ -29,12 +29,21 @@ export function renderMarkdown(markdown: string): string {
     // This eliminates excessive spacing between sections
     let processed = markdown.replace(/\n\n+/g, '\n');
 
+    console.log('=== MARKDOWN RENDERING DEBUG ===');
+    console.log('Original markdown:', markdown.substring(0, 500));
+    console.log('Processed markdown:', processed.substring(0, 500));
+
     // Use synchronous parse
     const result = marked(processed);
     let html = typeof result === 'string' ? result : String(result);
 
+    console.log('Generated HTML:', html.substring(0, 500));
+
     // Remove trailing whitespace and empty paragraphs at the end
     html = html.replace(/(<p>\s*<\/p>|\s)+$/g, '');
+
+    console.log('Final HTML:', html.substring(0, 500));
+    console.log('=== END DEBUG ===');
 
     return html;
   } catch (error) {
