@@ -27,7 +27,16 @@ export function renderMarkdown(markdown: string): string {
   try {
     // Use synchronous parse
     const result = marked(markdown);
-    return typeof result === 'string' ? result : String(result);
+    let html = typeof result === 'string' ? result : String(result);
+
+    // Post-process HTML to remove excessive spacing between paragraphs
+    // Replace multiple consecutive paragraph breaks with single breaks
+    html = html.replace(/(<\/p>\s*<p>)+/g, '</p><p>');
+
+    // Remove trailing whitespace and empty paragraphs at the end
+    html = html.replace(/(<p>\s*<\/p>|\s)+$/g, '');
+
+    return html;
   } catch (error) {
     console.error('Error rendering markdown:', error);
     return markdown; // Fallback to plain text
