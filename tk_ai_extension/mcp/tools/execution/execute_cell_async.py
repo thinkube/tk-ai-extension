@@ -239,23 +239,19 @@ class ExecuteCellAsyncTool(BaseTool):
             serverapp.log.info(f"Async execution {execution_id}: Starting cell {cell_index} execution")
 
             # Execute code using kernel directly (no timeout for async)
-            outputs = await self._execute_code(
+            execution_count, outputs = await self._execute_code(
                 serverapp=serverapp,
                 kernel_id=kernel_id,
                 kernel_manager=kernel_manager,
                 code=source
             )
 
-            serverapp.log.info(f"Async execution {execution_id}: Execution completed with {len(outputs)} outputs")
+            serverapp.log.info(f"Async execution {execution_id}: Execution completed with {len(outputs)} outputs, execution_count={execution_count}")
 
-            # Update execution count and outputs in YDoc with transaction
-            max_count = 0
-            for c in ydoc.ycells:
-                if c.get("cell_type") == "code" and c.get("execution_count"):
-                    max_count = max(max_count, c["execution_count"])
-
+            # Update execution count and outputs in YDoc with transaction (required for RTC broadcast)
+            # Use the execution count from the kernel (not calculated from notebook)
             with ydoc.ycells[cell_index].doc.transaction():
-                ydoc.ycells[cell_index]["execution_count"] = max_count + 1
+                ydoc.ycells[cell_index]["execution_count"] = execution_count
                 # Clear existing outputs and add new ones
                 del ydoc.ycells[cell_index]["outputs"][:]
                 for output in outputs:
@@ -278,8 +274,11 @@ class ExecuteCellAsyncTool(BaseTool):
         kernel_id: str,
         kernel_manager: Any,
         code: str
-    ) -> List[Dict[str, Any]]:
+    ) -> tuple[int, List[Dict[str, Any]]]:
         """Execute code in kernel and collect outputs (no timeout for async).
+
+        Returns:
+            Tuple of (execution_count, outputs) where execution_count is from the kernel
 
         Adapted from ExecuteCellTool._execute_code but without timeout.
         """
@@ -312,8 +311,9 @@ class ExecuteCellAsyncTool(BaseTool):
 
             await asyncio.sleep(0.01)
 
-            # Prepare to collect outputs
+            # Prepare to collect outputs and execution count
             outputs = []
+            execution_count = None
             execution_done = False
             grace_period_ms = 100
 
@@ -356,6 +356,9 @@ class ExecuteCellAsyncTool(BaseTool):
                                 'text': content.get('text', '')
                             })
                         elif msg_type == 'execute_result':
+                            # Capture execution count from kernel
+                            if execution_count is None:
+                                execution_count = content.get('execution_count')
                             outputs.append({
                                 'output_type': 'execute_result',
                                 'data': content.get('data', {}),
@@ -385,16 +388,20 @@ class ExecuteCellAsyncTool(BaseTool):
                     if reply and reply.get('parent_header', {}).get('msg_id') == msg_id['header']['msg_id']:
                         execution_done = True
                         execution_done_time = asyncio.get_event_loop().time()
+                        # Capture execution_count from shell reply if not already captured
+                        if execution_count is None:
+                            reply_content = reply.get('content', {})
+                            execution_count = reply_content.get('execution_count')
 
             # Clean up
             client.stop_channels()
 
-            return outputs
+            # Kernel must return execution_count - fail if it doesn't
+            if execution_count is None:
+                raise RuntimeError("Kernel did not return execution_count in shell reply")
+
+            return (execution_count, outputs)
 
         except Exception as e:
             serverapp.log.error(f"Error executing code: {e}", exc_info=True)
-            return [{
-                "output_type": "stream",
-                "name": "stderr",
-                "text": f"[ERROR: {str(e)}]"
-            }]
+            raise
