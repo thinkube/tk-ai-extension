@@ -390,9 +390,15 @@
   color: var(--tk-text-muted);
 }
 
+/* Button Group */
+.tk-button-group {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
 /* Send Button */
 .tk-send-button {
-  align-self: flex-end;
   padding: 10px 24px;
   background-color: var(--tk-primary);
   color: white;
@@ -419,6 +425,69 @@
   cursor: not-allowed;
 }
 
+/* Cancel Button */
+.tk-cancel-button {
+  padding: 10px 24px;
+  background-color: var(--tk-error);
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  animation: pulse-cancel 1.5s ease-in-out infinite;
+}
+
+.tk-cancel-button:hover {
+  background-color: #c0392b;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(231, 76, 60, 0.4);
+}
+
+.tk-cancel-button:active {
+  transform: translateY(0);
+}
+
+@keyframes pulse-cancel {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.85;
+  }
+}
+
+/* Tool Call Indicator */
+.tk-tool-indicator {
+  font-size: 10px;
+  font-weight: 500;
+  background-color: var(--tk-info);
+  color: white;
+  padding: 2px 8px;
+  border-radius: 10px;
+  animation: tool-pulse 1s ease-in-out infinite;
+}
+
+@keyframes tool-pulse {
+  0%, 100% {
+    opacity: 0.9;
+  }
+  50% {
+    opacity: 1;
+    background-color: var(--tk-primary);
+  }
+}
+
+/* Streaming Message */
+.tk-message-streaming {
+  border-left: 3px solid var(--tk-primary);
+}
+
+.tk-message-streaming .tk-message-content {
+  border: 1px dashed var(--tk-primary);
+}
+
 /* Scrollbar Styling */
 .tk-messages::-webkit-scrollbar {
   width: 6px;
@@ -437,6 +506,137 @@
   background-color: var(--tk-primary);
 }
 
+/* Navbar Actions */
+.tk-navbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.tk-navbar-button {
+  background-color: rgba(255, 255, 255, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  color: white;
+  border-radius: 4px;
+  padding: 4px 8px;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.tk-navbar-button:hover:not(:disabled) {
+  background-color: rgba(255, 255, 255, 0.3);
+  border-color: rgba(255, 255, 255, 0.5);
+  transform: scale(1.05);
+}
+
+.tk-navbar-button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* Tool Activity Panel */
+.tk-tool-panel {
+  background-color: var(--tk-bg-secondary);
+  border-bottom: 1px solid var(--tk-border);
+  max-height: 150px;
+  overflow-y: auto;
+}
+
+.tk-tool-panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 12px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--tk-text-secondary);
+  border-bottom: 1px solid var(--tk-border);
+  background-color: var(--tk-bg);
+}
+
+.tk-tool-panel-close {
+  background: none;
+  border: none;
+  color: var(--tk-text-muted);
+  cursor: pointer;
+  font-size: 12px;
+  padding: 2px 6px;
+  border-radius: 3px;
+}
+
+.tk-tool-panel-close:hover {
+  background-color: var(--tk-border);
+  color: var(--tk-text);
+}
+
+.tk-tool-list {
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.tk-tool-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-radius: 4px;
+  font-size: 12px;
+  background-color: var(--tk-bg);
+}
+
+.tk-tool-item.tk-tool-running {
+  background-color: rgba(52, 152, 219, 0.1);
+  border-left: 3px solid var(--tk-info);
+}
+
+.tk-tool-item.tk-tool-completed {
+  background-color: rgba(0, 200, 150, 0.1);
+  border-left: 3px solid var(--tk-success);
+}
+
+.tk-tool-item.tk-tool-error {
+  background-color: rgba(231, 76, 60, 0.1);
+  border-left: 3px solid var(--tk-error);
+}
+
+.tk-tool-status {
+  font-size: 14px;
+}
+
+.tk-tool-name {
+  flex: 1;
+  font-weight: 500;
+  color: var(--tk-text);
+}
+
+.tk-tool-duration {
+  font-size: 10px;
+  color: var(--tk-text-muted);
+  background-color: var(--tk-bg-secondary);
+  padding: 2px 6px;
+  border-radius: 10px;
+}
+
+/* WebSocket reconnecting indicator */
+.tk-status-item.reconnecting .tk-status-indicator {
+  background-color: var(--tk-warning);
+  animation: reconnect-pulse 1s ease-in-out infinite;
+}
+
+@keyframes reconnect-pulse {
+  0%, 100% {
+    opacity: 0.5;
+  }
+  50% {
+    opacity: 1;
+    box-shadow: 0 0 6px var(--tk-warning);
+  }
+}
+
 /* Responsive Design */
 @media (max-width: 600px) {
   .tk-message {
@@ -450,5 +650,18 @@
   .tk-message-content {
     font-size: 12px;
     padding: 10px 12px;
+  }
+
+  .tk-navbar-actions {
+    gap: 2px;
+  }
+
+  .tk-navbar-button {
+    padding: 3px 6px;
+    font-size: 12px;
+  }
+
+  .tk-tool-panel {
+    max-height: 100px;
   }
 }

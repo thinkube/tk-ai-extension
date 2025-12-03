@@ -106,13 +106,24 @@ class DeleteCellTool(BaseTool):
                     "success": False
                 }
 
+            # Get cell info before deletion for undo support
+            cell_data = ydoc.ycells[cell_index]
+            cell_type = cell_data.get("cell_type", "code")
+            source_raw = cell_data.get("source", "")
+            if isinstance(source_raw, list):
+                previous_content = "".join(source_raw)
+            else:
+                previous_content = str(source_raw)
+
             # Delete cell
             del ydoc.ycells[cell_index]
 
             return {
                 "success": True,
                 "cell_index": cell_index,
-                "message": f"Cell at index {cell_index} deleted successfully"
+                "message": f"Cell at index {cell_index} deleted successfully",
+                "previous_content": previous_content,  # For undo support
+                "cell_type": cell_type  # For undo support
             }
 
         except Exception as e:

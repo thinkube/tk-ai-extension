@@ -136,7 +136,7 @@ class TKAIExtension(ExtensionApp):
         register_tool(CheckModuleTool())
 
     def initialize_handlers(self):
-        """Initialize HTTP handlers."""
+        """Initialize HTTP and WebSocket handlers."""
         from .handlers import (
             MCPHealthHandler,
             ModelHealthHandler,
@@ -148,6 +148,7 @@ class TKAIExtension(ExtensionApp):
             ClearConversationHandler,
             FileIdHandler
         )
+        from .websocket_handler import MCPStreamingWebSocket
 
         self.handlers.extend([
             (r"/api/tk-ai/mcp/health", MCPHealthHandler),
@@ -159,6 +160,8 @@ class TKAIExtension(ExtensionApp):
             (r"/api/tk-ai/mcp/notebook/connect", NotebookConnectHandler),
             (r"/api/tk-ai/mcp/conversation/clear", ClearConversationHandler),
             (r"/api/tk-ai/fileid", FileIdHandler),
+            # WebSocket endpoint for streaming responses
+            (r"/api/tk-ai/mcp/stream", MCPStreamingWebSocket),
         ])
 
 

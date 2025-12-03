@@ -130,21 +130,25 @@ class InsertCellTool(BaseTool):
             new_cell = {
                 "cell_type": cell_type,
                 "source": source,
+                "metadata": {},  # Always include metadata for proper cell structure
             }
 
-            # Code cells require execution_count (null for unexecuted)
+            # Code cells require execution_count and outputs
             if cell_type == "code":
                 new_cell["execution_count"] = None
+                new_cell["outputs"] = []
 
-            # Create proper CRDT cell object
+            # Create proper CRDT cell object and insert within transaction
             ycell = ydoc.create_ycell(new_cell)
-            ydoc.ycells.insert(cell_index, ycell)
+            with ydoc.ycells.doc.transaction():
+                ydoc.ycells.insert(cell_index, ycell)
 
             return {
                 "success": True,
                 "cell_index": cell_index,
                 "cell_type": cell_type,
-                "message": f"{cell_type.capitalize()} cell inserted at index {cell_index}"
+                "message": f"{cell_type.capitalize()} cell inserted at index {cell_index}",
+                "can_undo": True  # For undo support - delete this cell to undo
             }
 
         except Exception as e:

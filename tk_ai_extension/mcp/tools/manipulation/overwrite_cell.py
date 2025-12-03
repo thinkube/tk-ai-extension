@@ -137,8 +137,9 @@ class OverwriteCellTool(BaseTool):
             else:
                 old_source = str(old_source_raw)
 
-            # Set new cell source
-            ydoc.ycells[cell_index]["source"] = source
+            # Set new cell source within a transaction for atomic update
+            with ydoc.ycells[cell_index].doc.transaction():
+                ydoc.ycells[cell_index]["source"] = source
 
             # Generate diff
             diff_content = self._generate_diff(old_source, source)
@@ -147,14 +148,16 @@ class OverwriteCellTool(BaseTool):
                 return {
                     "success": True,
                     "cell_index": cell_index,
-                    "message": "Cell overwritten successfully - no changes detected"
+                    "message": "Cell overwritten successfully - no changes detected",
+                    "previous_content": old_source  # For undo support
                 }
 
             return {
                 "success": True,
                 "cell_index": cell_index,
                 "message": f"Cell {cell_index} overwritten successfully!",
-                "diff": diff_content
+                "diff": diff_content,
+                "previous_content": old_source  # For undo support
             }
 
         except Exception as e:

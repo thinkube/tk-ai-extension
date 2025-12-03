@@ -5,9 +5,9 @@
  * Chat Panel React component
  */
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { JupyterFrontEnd } from '@jupyterlab/application';
-import { MCPClient, IChatMessage } from '../api';
+import { MCPClient, IChatMessage, IStreamingCallbacks, IToolExecution } from '../api';
 import { renderMarkdown } from '../utils/markdown';
 
 /**
@@ -91,13 +91,27 @@ export const ChatPanel = React.forwardRef<any, IChatPanelProps>(({ client, noteb
   const [isLoading, setIsLoading] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
   const [isModelConnected, setIsModelConnected] = useState(false);
+  const [isWebSocketConnected, setIsWebSocketConnected] = useState(false);
   const [connectedNotebook, setConnectedNotebook] = useState<string | null>(null);
   const [isRestoring, setIsRestoring] = useState(false);
   const [isExecutingInBackground, setIsExecutingInBackground] = useState(false);
   const [executingCellIndex, setExecutingCellIndex] = useState<number | null>(null);
+  const [streamingContent, setStreamingContent] = useState<string>('');
+  const [currentToolCall, setCurrentToolCall] = useState<string | null>(null);
+  const [toolExecutions, setToolExecutions] = useState<IToolExecution[]>([]);
+  const [showToolPanel, setShowToolPanel] = useState(false);
+  const [useStreaming, setUseStreaming] = useState(true);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const pollingIntervalRef = useRef<number | null>(null);
   const activeExecutionIdRef = useRef<string | null>(null);
+
+  // Undo support - track recent cell changes
+  const [undoStack, setUndoStack] = useState<Array<{
+    type: 'overwrite' | 'insert' | 'delete';
+    cellIndex: number;
+    previousContent?: string;
+    cellType?: string;
+  }>>([]);
 
   // Expose methods via ref
   React.useImperativeHandle(ref, () => ({
@@ -319,6 +333,14 @@ export const ChatPanel = React.forwardRef<any, IChatPanelProps>(({ client, noteb
     };
   }, []);
 
+  const handleCancel = () => {
+    console.log('Cancelling current request...');
+    client.cancelStreaming();
+    setIsLoading(false);
+    setStreamingContent('');
+    setCurrentToolCall(null);
+  };
+
   const handleSend = async () => {
     if (!inputValue.trim() || isLoading) {
       return;
@@ -358,38 +380,127 @@ export const ChatPanel = React.forwardRef<any, IChatPanelProps>(({ client, noteb
     setMessages(prev => [...prev, userMessage]);
     setInputValue('');
     setIsLoading(true);
+    setStreamingContent('');
+    setCurrentToolCall(null);
 
-    try {
-      // Get the current notebook path at the time of sending
-      const activeNotebookPath = getCurrentNotebookPath();
-      // Send enhanced message with context to Claude
-      const response = await client.sendMessage(enhancedMessage, activeNotebookPath);
+    // Get the current notebook path at the time of sending
+    const activeNotebookPath = getCurrentNotebookPath();
 
-      // Don't modify raw markdown - let renderMarkdown() handle spacing cleanup in HTML
-      const assistantMessage: IChatMessage = {
-        role: 'assistant',
-        content: response,
-        timestamp: new Date()
+    // Use streaming if enabled and notebook path is available
+    if (useStreaming && activeNotebookPath) {
+      const callbacks: IStreamingCallbacks = {
+        onToken: (token: string) => {
+          setStreamingContent(prev => prev + token);
+        },
+        onToolCall: (name: string, args: any) => {
+          console.log('Tool call:', name, args);
+          setCurrentToolCall(name);
+          // Add to tool executions
+          setToolExecutions(prev => [...prev, {
+            name,
+            args,
+            status: 'running',
+            startTime: new Date()
+          }]);
+        },
+        onToolResult: (name: string, success: boolean, result?: any) => {
+          console.log('Tool result:', name, success);
+          setCurrentToolCall(null);
+          // Update tool execution status
+          setToolExecutions(prev => prev.map(exec =>
+            exec.name === name && exec.status === 'running'
+              ? { ...exec, status: success ? 'completed' : 'error', endTime: new Date() }
+              : exec
+          ));
+          // Track cell changes for undo (if the tool modified a cell)
+          if (success && result && (name === 'overwrite_cell' || name === 'insert_cell' || name === 'delete_cell')) {
+            if (result.previous_content !== undefined) {
+              setUndoStack(prev => [...prev.slice(-9), {
+                type: name.replace('_cell', '') as 'overwrite' | 'insert' | 'delete',
+                cellIndex: result.cell_index ?? args.cell_index,
+                previousContent: result.previous_content,
+                cellType: result.cell_type
+              }]);
+            }
+          }
+        },
+        onConnectionChange: (connected: boolean) => {
+          setIsWebSocketConnected(connected);
+        },
+        onDone: (fullResponse: string) => {
+          const assistantMessage: IChatMessage = {
+            role: 'assistant',
+            content: fullResponse,
+            timestamp: new Date()
+          };
+          setMessages(prev => [...prev, assistantMessage]);
+          setStreamingContent('');
+          setIsLoading(false);
+          // Clear tool executions after a delay so user can see final state
+          setTimeout(() => setToolExecutions([]), 2000);
+
+          // Check for async execution
+          const executionInfo = extractExecutionId(fullResponse);
+          if (executionInfo) {
+            console.log('Detected async execution:', executionInfo);
+            startExecutionPolling(executionInfo.executionId, executionInfo.cellIndex);
+          }
+        },
+        onError: (error: string) => {
+          const errorMessage: IChatMessage = {
+            role: 'assistant',
+            content: `Error: ${error}`,
+            timestamp: new Date()
+          };
+          setMessages(prev => [...prev, errorMessage]);
+          setStreamingContent('');
+          setIsLoading(false);
+        },
+        onCancelled: () => {
+          // Add partial response if any
+          if (streamingContent) {
+            const partialMessage: IChatMessage = {
+              role: 'assistant',
+              content: streamingContent + '\n\n*[Response cancelled]*',
+              timestamp: new Date()
+            };
+            setMessages(prev => [...prev, partialMessage]);
+          }
+          setStreamingContent('');
+          setIsLoading(false);
+        }
       };
 
-      setMessages(prev => [...prev, assistantMessage]);
+      client.sendMessageStreaming(enhancedMessage, activeNotebookPath, callbacks);
+    } else {
+      // Fallback to non-streaming
+      try {
+        const response = await client.sendMessage(enhancedMessage, activeNotebookPath);
 
-      // Check if response contains an execution_id (async execution started)
-      const executionInfo = extractExecutionId(response);
-      if (executionInfo) {
-        console.log('Detected async execution in response:', executionInfo);
-        startExecutionPolling(executionInfo.executionId, executionInfo.cellIndex);
+        const assistantMessage: IChatMessage = {
+          role: 'assistant',
+          content: response,
+          timestamp: new Date()
+        };
+
+        setMessages(prev => [...prev, assistantMessage]);
+
+        const executionInfo = extractExecutionId(response);
+        if (executionInfo) {
+          console.log('Detected async execution in response:', executionInfo);
+          startExecutionPolling(executionInfo.executionId, executionInfo.cellIndex);
+        }
+      } catch (error) {
+        const errorMessage: IChatMessage = {
+          role: 'assistant',
+          content: `Error: ${error instanceof Error ? error.message : 'Unknown error'}`,
+          timestamp: new Date()
+        };
+
+        setMessages(prev => [...prev, errorMessage]);
+      } finally {
+        setIsLoading(false);
       }
-    } catch (error) {
-      const errorMessage: IChatMessage = {
-        role: 'assistant',
-        content: `Error: ${error instanceof Error ? error.message : 'Unknown error'}`,
-        timestamp: new Date()
-      };
-
-      setMessages(prev => [...prev, errorMessage]);
-    } finally {
-      setIsLoading(false);
     }
   };
 
@@ -425,6 +536,35 @@ export const ChatPanel = React.forwardRef<any, IChatPanelProps>(({ client, noteb
     return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   };
 
+  /**
+   * Export conversation to markdown file
+   */
+  const handleExportConversation = () => {
+    if (messages.length === 0) return;
+    const notebookName = connectedNotebook || 'conversation';
+    client.downloadConversation(messages, notebookName);
+  };
+
+  /**
+   * Format tool name for display
+   */
+  const formatToolName = (name: string): string => {
+    return name
+      .replace(/_/g, ' ')
+      .replace(/\b\w/g, c => c.toUpperCase());
+  };
+
+  /**
+   * Get tool status icon
+   */
+  const getToolStatusIcon = (status: 'running' | 'completed' | 'error'): string => {
+    switch (status) {
+      case 'running': return '⏳';
+      case 'completed': return '✅';
+      case 'error': return '❌';
+    }
+  };
+
   // Debug logging for indicator state
   console.log(`ChatPanel render - isExecutingInBackground: ${isExecutingInBackground}, cellIndex: ${executingCellIndex}`);
 
@@ -443,14 +583,31 @@ export const ChatPanel = React.forwardRef<any, IChatPanelProps>(({ client, noteb
               </span>
             )}
           </div>
-          <button
-            className="tk-clear-history-button"
-            onClick={handleClearHistory}
-            disabled={isLoading || messages.length === 0}
-            title="Clear conversation history"
-          >
-            🗑️
-          </button>
+          <div className="tk-navbar-actions">
+            <button
+              className="tk-navbar-button"
+              onClick={handleExportConversation}
+              disabled={messages.length === 0}
+              title="Export conversation to markdown"
+            >
+              📥
+            </button>
+            <button
+              className="tk-navbar-button"
+              onClick={() => setShowToolPanel(!showToolPanel)}
+              title={showToolPanel ? 'Hide tool activity' : 'Show tool activity'}
+            >
+              🔧
+            </button>
+            <button
+              className="tk-navbar-button tk-clear-button"
+              onClick={handleClearHistory}
+              disabled={isLoading || messages.length === 0}
+              title="Clear conversation history"
+            >
+              🗑️
+            </button>
+          </div>
         </div>
       )}
 
@@ -458,13 +615,46 @@ export const ChatPanel = React.forwardRef<any, IChatPanelProps>(({ client, noteb
       <div className="tk-connection-status">
         <div className={`tk-status-item ${isConnected ? 'connected' : 'disconnected'}`}>
           <span className="tk-status-indicator"></span>
-          <span className="tk-status-label">MCP Server</span>
+          <span className="tk-status-label">MCP</span>
         </div>
         <div className={`tk-status-item ${isModelConnected ? 'connected' : 'disconnected'}`}>
           <span className="tk-status-indicator"></span>
-          <span className="tk-status-label">AI Model</span>
+          <span className="tk-status-label">AI</span>
+        </div>
+        <div className={`tk-status-item ${isWebSocketConnected ? 'connected' : 'disconnected'}`}>
+          <span className="tk-status-indicator"></span>
+          <span className="tk-status-label">Stream</span>
         </div>
       </div>
+
+      {/* Tool activity panel */}
+      {showToolPanel && toolExecutions.length > 0 && (
+        <div className="tk-tool-panel">
+          <div className="tk-tool-panel-header">
+            <span>Tool Activity</span>
+            <button
+              className="tk-tool-panel-close"
+              onClick={() => setToolExecutions([])}
+              title="Clear tool history"
+            >
+              ✕
+            </button>
+          </div>
+          <div className="tk-tool-list">
+            {toolExecutions.map((exec, idx) => (
+              <div key={idx} className={`tk-tool-item tk-tool-${exec.status}`}>
+                <span className="tk-tool-status">{getToolStatusIcon(exec.status)}</span>
+                <span className="tk-tool-name">{formatToolName(exec.name)}</span>
+                {exec.endTime && (
+                  <span className="tk-tool-duration">
+                    {Math.round((exec.endTime.getTime() - exec.startTime.getTime()) / 1000)}s
+                  </span>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Messages area */}
       <div className="tk-messages">
@@ -485,15 +675,25 @@ export const ChatPanel = React.forwardRef<any, IChatPanelProps>(({ client, noteb
           </div>
         ))}
         {isLoading && (
-          <div className="tk-message tk-message-assistant">
+          <div className="tk-message tk-message-assistant tk-message-streaming">
             <div className="tk-message-header">
               <span className="tk-message-role">🤖 Thinky</span>
+              {currentToolCall && (
+                <span className="tk-tool-indicator">⚙️ {currentToolCall}</span>
+              )}
             </div>
-            <div className="tk-message-content tk-loading">
-              <span className="tk-loading-dot"></span>
-              <span className="tk-loading-dot"></span>
-              <span className="tk-loading-dot"></span>
-            </div>
+            {streamingContent ? (
+              <div
+                className="tk-message-content"
+                dangerouslySetInnerHTML={{ __html: renderMarkdown(streamingContent) }}
+              />
+            ) : (
+              <div className="tk-message-content tk-loading">
+                <span className="tk-loading-dot"></span>
+                <span className="tk-loading-dot"></span>
+                <span className="tk-loading-dot"></span>
+              </div>
+            )}
           </div>
         )}
         <div ref={messagesEndRef} />
@@ -510,13 +710,25 @@ export const ChatPanel = React.forwardRef<any, IChatPanelProps>(({ client, noteb
           disabled={!isConnected || !isModelConnected || isLoading}
           rows={3}
         />
-        <button
-          className="tk-send-button"
-          onClick={handleSend}
-          disabled={!isConnected || !isModelConnected || isLoading || !inputValue.trim()}
-        >
-          Send
-        </button>
+        <div className="tk-button-group">
+          {isLoading ? (
+            <button
+              className="tk-cancel-button"
+              onClick={handleCancel}
+              title="Cancel current request"
+            >
+              ⏹ Stop
+            </button>
+          ) : (
+            <button
+              className="tk-send-button"
+              onClick={handleSend}
+              disabled={!isConnected || !isModelConnected || !inputValue.trim()}
+            >
+              Send
+            </button>
+          )}
+        </div>
       </div>
     </div>
   );
