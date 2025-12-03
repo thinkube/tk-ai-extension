@@ -130,18 +130,19 @@ class OverwriteCellTool(BaseTool):
                     "success": False
                 }
 
-            # Get original cell content and type
-            cell = ydoc.ycells[cell_index]
-            cell_type = cell.get("cell_type", "code")
-            old_source_raw = cell.get("source", "")
+            # Get original cell content using proper YNotebook API
+            cell_dict = ydoc.get_cell(cell_index)
+            cell_type = cell_dict.get("cell_type", "code")
+            old_source_raw = cell_dict.get("source", "")
             if isinstance(old_source_raw, list):
                 old_source = "".join(old_source_raw)
             else:
                 old_source = str(old_source_raw)
 
-            # Set new cell source within a transaction for atomic update
-            with ydoc.ycells[cell_index].doc.transaction():
-                ydoc.ycells[cell_index]["source"] = source
+            # Update cell source using proper YNotebook API
+            # This ensures proper CRDT sync to all connected clients
+            cell_dict["source"] = source
+            ydoc.set_cell(cell_index, cell_dict)
 
             # Generate diff
             diff_content = self._generate_diff(old_source, source)

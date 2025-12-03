@@ -106,17 +106,17 @@ class DeleteCellTool(BaseTool):
                     "success": False
                 }
 
-            # Get cell info before deletion for undo support
-            cell_data = ydoc.ycells[cell_index]
-            cell_type = cell_data.get("cell_type", "code")
-            source_raw = cell_data.get("source", "")
+            # Get cell info before deletion using proper YNotebook API for undo support
+            cell_dict = ydoc.get_cell(cell_index)
+            cell_type = cell_dict.get("cell_type", "code")
+            source_raw = cell_dict.get("source", "")
             if isinstance(source_raw, list):
                 previous_content = "".join(source_raw)
             else:
                 previous_content = str(source_raw)
 
-            # Delete cell
-            del ydoc.ycells[cell_index]
+            # Delete cell using pop for proper CRDT sync
+            ydoc.ycells.pop(cell_index)
 
             return {
                 "success": True,

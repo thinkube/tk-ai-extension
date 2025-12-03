@@ -424,15 +424,21 @@ export const ChatPanel = React.forwardRef<any, IChatPanelProps>(({ client, noteb
             }
             // Trigger markdown re-render if this was a markdown cell
             if (result.cell_type === 'markdown' && result.cell_index !== undefined && labShell) {
-              console.log(`Markdown cell ${result.cell_index} modified, triggering re-render`);
+              console.log(`[NOTEBOOK CELL] Markdown cell ${result.cell_index} modified via tool result`);
               setTimeout(() => {
                 const currentWidget = labShell.currentWidget;
                 if (currentWidget && (currentWidget as any).content) {
                   const notebook = (currentWidget as any).content;
                   if (notebook && notebook.widgets && notebook.widgets[result.cell_index]) {
                     const cell = notebook.widgets[result.cell_index];
+                    // Force re-render by toggling rendered state
                     if (cell.rendered !== undefined) {
-                      cell.rendered = true;
+                      console.log(`[NOTEBOOK CELL] Toggling rendered state for cell ${result.cell_index}`);
+                      cell.rendered = false;
+                      requestAnimationFrame(() => {
+                        cell.rendered = true;
+                        console.log(`[NOTEBOOK CELL] Cell ${result.cell_index} re-rendered`);
+                      });
                     }
                   }
                 }
@@ -446,21 +452,22 @@ export const ChatPanel = React.forwardRef<any, IChatPanelProps>(({ client, noteb
         onCellUpdated: (cellType: string, cellIndex: number) => {
           // Trigger markdown cell re-rendering
           if (cellType === 'markdown' && labShell) {
-            console.log(`Markdown cell ${cellIndex} updated, triggering re-render`);
-            // Use JupyterLab command to render all markdown cells
-            // This ensures the updated markdown is displayed properly
+            console.log(`[NOTEBOOK CELL] Markdown cell ${cellIndex} updated, triggering re-render`);
             const currentWidget = labShell.currentWidget;
             if (currentWidget && (currentWidget as any).content) {
               const notebook = (currentWidget as any).content;
               if (notebook && notebook.widgets && notebook.widgets[cellIndex]) {
                 const cell = notebook.widgets[cellIndex];
-                // For markdown cells, toggle rendered state to force re-render
-                if (cell.model && cell.model.type === 'markdown') {
-                  // The cell is in edit mode showing raw markdown
-                  // Set rendered = true to show rendered output
-                  if (cell.rendered !== undefined) {
+                // Force re-render by toggling the rendered state
+                // First set to false (edit mode), then back to true (render)
+                if (cell.rendered !== undefined) {
+                  console.log(`[NOTEBOOK CELL] Toggling rendered state for cell ${cellIndex}`);
+                  cell.rendered = false;
+                  // Use requestAnimationFrame to ensure the toggle happens in next frame
+                  requestAnimationFrame(() => {
                     cell.rendered = true;
-                  }
+                    console.log(`[NOTEBOOK CELL] Cell ${cellIndex} re-rendered`);
+                  });
                 }
               }
             }

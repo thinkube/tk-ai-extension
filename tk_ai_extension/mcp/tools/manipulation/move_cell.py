@@ -126,15 +126,17 @@ class MoveCellTool(BaseTool):
                     "success": False
                 }
 
-            # Move cell using YDoc
-            cell = ydoc.ycells[from_index]
-            del ydoc.ycells[from_index]
+            # Move cell using YDoc - get cell dict first, then pop and insert
+            cell_dict = ydoc.get_cell(from_index)
+            ydoc.ycells.pop(from_index)
 
             # Adjust to_index if needed
             if to_index > from_index:
                 to_index -= 1
 
-            ydoc.ycells.insert(to_index, cell)
+            # Create new ycell from dict and insert
+            ycell = ydoc.create_ycell(cell_dict)
+            ydoc.ycells.insert(to_index, ycell)
 
             return {
                 "success": True,
