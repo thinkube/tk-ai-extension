@@ -459,8 +459,7 @@ export const ChatPanel = React.forwardRef<any, IChatPanelProps>(({ client, noteb
           setMessages(prev => [...prev, assistantMessage]);
           setStreamingContent('');
           setIsLoading(false);
-          // Clear tool executions after a delay so user can see final state
-          setTimeout(() => setToolExecutions([]), 2000);
+          // Keep tool executions for profiling - user can clear manually via panel
 
           // Check for async execution
           const executionInfo = extractExecutionId(fullResponse);
@@ -651,30 +650,34 @@ export const ChatPanel = React.forwardRef<any, IChatPanelProps>(({ client, noteb
       </div>
 
       {/* Tool activity panel */}
-      {showToolPanel && toolExecutions.length > 0 && (
+      {showToolPanel && (
         <div className="tk-tool-panel">
           <div className="tk-tool-panel-header">
             <span>Tool Activity</span>
             <button
               className="tk-tool-panel-close"
-              onClick={() => setToolExecutions([])}
-              title="Clear tool history"
+              onClick={() => setShowToolPanel(false)}
+              title="Close panel"
             >
               ✕
             </button>
           </div>
           <div className="tk-tool-list">
-            {toolExecutions.map((exec, idx) => (
-              <div key={idx} className={`tk-tool-item tk-tool-${exec.status}`}>
-                <span className="tk-tool-status">{getToolStatusIcon(exec.status)}</span>
-                <span className="tk-tool-name">{formatToolName(exec.name)}</span>
-                {exec.endTime && (
-                  <span className="tk-tool-duration">
-                    {Math.round((exec.endTime.getTime() - exec.startTime.getTime()) / 1000)}s
-                  </span>
-                )}
-              </div>
-            ))}
+            {toolExecutions.length === 0 ? (
+              <div className="tk-tool-empty">No tool activity yet</div>
+            ) : (
+              toolExecutions.map((exec, idx) => (
+                <div key={idx} className={`tk-tool-item tk-tool-${exec.status}`}>
+                  <span className="tk-tool-status">{getToolStatusIcon(exec.status)}</span>
+                  <span className="tk-tool-name">{formatToolName(exec.name)}</span>
+                  {exec.endTime && (
+                    <span className="tk-tool-duration">
+                      {Math.round((exec.endTime.getTime() - exec.startTime.getTime()) / 1000)}s
+                    </span>
+                  )}
+                </div>
+              ))
+            )}
           </div>
         </div>
       )}

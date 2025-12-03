@@ -194,10 +194,16 @@ class MCPStreamingWebSocket(websocket.WebSocketHandler, JupyterHandler):
                     logger.info("Request was cancelled")
                     return
 
+                # Log message type for debugging
+                logger.debug(f"[WS MESSAGE TYPE] {type(message).__name__}")
+
                 if isinstance(message, AssistantMessage):
                     for block in message.content:
                         if self._cancelled:
                             return
+
+                        # Log block type for debugging
+                        logger.debug(f"[WS BLOCK TYPE] {type(block).__name__}")
 
                         if isinstance(block, TextBlock):
                             # Stream text token
