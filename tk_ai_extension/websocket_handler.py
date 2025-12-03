@@ -218,6 +218,7 @@ class MCPStreamingWebSocket(websocket.WebSocketHandler, JupyterHandler):
                         elif isinstance(block, ToolResultBlock):
                             # Notify about tool result with data for undo tracking
                             result_data = None
+                            tool_name = getattr(block, 'name', 'unknown')
                             if hasattr(block, 'content'):
                                 # Try to extract result data for cell operations
                                 try:
@@ -232,10 +233,21 @@ class MCPStreamingWebSocket(websocket.WebSocketHandler, JupyterHandler):
 
                             await self.write_message(json.dumps({
                                 "type": "tool_result",
-                                "name": getattr(block, 'name', 'unknown'),
+                                "name": tool_name,
                                 "success": not getattr(block, 'is_error', False),
                                 "result": result_data
                             }))
+
+                            # Send cell_updated message for markdown cells to trigger re-render
+                            if result_data and tool_name == 'overwrite_cell_source':
+                                cell_type = result_data.get('cell_type')
+                                cell_index = result_data.get('cell_index')
+                                if cell_type == 'markdown' and cell_index is not None:
+                                    await self.write_message(json.dumps({
+                                        "type": "cell_updated",
+                                        "cell_type": "markdown",
+                                        "cell_index": cell_index
+                                    }))
 
             # Send completion
             if not self._cancelled:

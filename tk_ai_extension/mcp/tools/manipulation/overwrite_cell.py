@@ -130,8 +130,10 @@ class OverwriteCellTool(BaseTool):
                     "success": False
                 }
 
-            # Get original cell content
-            old_source_raw = ydoc.ycells[cell_index].get("source", "")
+            # Get original cell content and type
+            cell = ydoc.ycells[cell_index]
+            cell_type = cell.get("cell_type", "code")
+            old_source_raw = cell.get("source", "")
             if isinstance(old_source_raw, list):
                 old_source = "".join(old_source_raw)
             else:
@@ -148,6 +150,7 @@ class OverwriteCellTool(BaseTool):
                 return {
                     "success": True,
                     "cell_index": cell_index,
+                    "cell_type": cell_type,
                     "message": "Cell overwritten successfully - no changes detected",
                     "previous_content": old_source  # For undo support
                 }
@@ -155,6 +158,7 @@ class OverwriteCellTool(BaseTool):
             return {
                 "success": True,
                 "cell_index": cell_index,
+                "cell_type": cell_type,
                 "message": f"Cell {cell_index} overwritten successfully!",
                 "diff": diff_content,
                 "previous_content": old_source  # For undo support

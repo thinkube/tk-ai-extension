@@ -427,6 +427,29 @@ export const ChatPanel = React.forwardRef<any, IChatPanelProps>(({ client, noteb
         onConnectionChange: (connected: boolean) => {
           setIsWebSocketConnected(connected);
         },
+        onCellUpdated: (cellType: string, cellIndex: number) => {
+          // Trigger markdown cell re-rendering
+          if (cellType === 'markdown' && labShell) {
+            console.log(`Markdown cell ${cellIndex} updated, triggering re-render`);
+            // Use JupyterLab command to render all markdown cells
+            // This ensures the updated markdown is displayed properly
+            const currentWidget = labShell.currentWidget;
+            if (currentWidget && (currentWidget as any).content) {
+              const notebook = (currentWidget as any).content;
+              if (notebook && notebook.widgets && notebook.widgets[cellIndex]) {
+                const cell = notebook.widgets[cellIndex];
+                // For markdown cells, toggle rendered state to force re-render
+                if (cell.model && cell.model.type === 'markdown') {
+                  // The cell is in edit mode showing raw markdown
+                  // Set rendered = true to show rendered output
+                  if (cell.rendered !== undefined) {
+                    cell.rendered = true;
+                  }
+                }
+              }
+            }
+          }
+        },
         onDone: (fullResponse: string) => {
           const assistantMessage: IChatMessage = {
             role: 'assistant',

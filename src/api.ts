@@ -44,6 +44,7 @@ export type StreamingMessageType =
   | 'token'
   | 'tool_call'
   | 'tool_result'
+  | 'cell_updated'
   | 'done'
   | 'error'
   | 'cancelled';
@@ -60,6 +61,8 @@ export interface IStreamingMessage {
   success?: boolean;
   full_response?: string;
   message?: string;
+  cell_type?: string;
+  cell_index?: number;
 }
 
 /**
@@ -80,6 +83,7 @@ export interface IStreamingCallbacks {
   onToken: (token: string) => void;
   onToolCall?: (name: string, args: any) => void;
   onToolResult?: (name: string, success: boolean, result?: any) => void;
+  onCellUpdated?: (cellType: string, cellIndex: number) => void;
   onDone: (fullResponse: string) => void;
   onError: (error: string) => void;
   onCancelled?: () => void;
@@ -240,6 +244,12 @@ export class MCPClient {
         case 'tool_result':
           if (this.streamingCallbacks.onToolResult && msg.name !== undefined) {
             this.streamingCallbacks.onToolResult(msg.name, msg.success ?? false, msg.result);
+          }
+          break;
+
+        case 'cell_updated':
+          if (this.streamingCallbacks.onCellUpdated && msg.cell_type && msg.cell_index !== undefined) {
+            this.streamingCallbacks.onCellUpdated(msg.cell_type, msg.cell_index);
           }
           break;
 
