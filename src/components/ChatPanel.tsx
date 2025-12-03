@@ -5,7 +5,7 @@
  * Chat Panel React component
  */
 
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { JupyterFrontEnd } from '@jupyterlab/application';
 import { MCPClient, IChatMessage, IStreamingCallbacks, IToolExecution } from '../api';
 import { renderMarkdown } from '../utils/markdown';
@@ -100,13 +100,13 @@ export const ChatPanel = React.forwardRef<any, IChatPanelProps>(({ client, noteb
   const [currentToolCall, setCurrentToolCall] = useState<string | null>(null);
   const [toolExecutions, setToolExecutions] = useState<IToolExecution[]>([]);
   const [showToolPanel, setShowToolPanel] = useState(false);
-  const [useStreaming, setUseStreaming] = useState(true);
+  const [useStreaming] = useState(true);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const pollingIntervalRef = useRef<number | null>(null);
   const activeExecutionIdRef = useRef<string | null>(null);
 
-  // Undo support - track recent cell changes
-  const [undoStack, setUndoStack] = useState<Array<{
+  // Undo support - track recent cell changes (for future undo button implementation)
+  const [, setUndoStack] = useState<Array<{
     type: 'overwrite' | 'insert' | 'delete';
     cellIndex: number;
     previousContent?: string;
@@ -414,10 +414,10 @@ export const ChatPanel = React.forwardRef<any, IChatPanelProps>(({ client, noteb
           ));
           // Track cell changes for undo (if the tool modified a cell)
           if (success && result && (name === 'overwrite_cell' || name === 'insert_cell' || name === 'delete_cell')) {
-            if (result.previous_content !== undefined) {
+            if (result.previous_content !== undefined || result.can_undo) {
               setUndoStack(prev => [...prev.slice(-9), {
                 type: name.replace('_cell', '') as 'overwrite' | 'insert' | 'delete',
-                cellIndex: result.cell_index ?? args.cell_index,
+                cellIndex: result.cell_index,
                 previousContent: result.previous_content,
                 cellType: result.cell_type
               }]);
