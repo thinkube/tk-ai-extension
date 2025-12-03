@@ -404,7 +404,7 @@ export const ChatPanel = React.forwardRef<any, IChatPanelProps>(({ client, noteb
           }]);
         },
         onToolResult: (name: string, success: boolean, result?: any) => {
-          console.log('Tool result:', name, success);
+          console.log('Tool result:', name, success, result);
           setCurrentToolCall(null);
           // Update tool execution status
           setToolExecutions(prev => prev.map(exec =>
@@ -413,14 +413,30 @@ export const ChatPanel = React.forwardRef<any, IChatPanelProps>(({ client, noteb
               : exec
           ));
           // Track cell changes for undo (if the tool modified a cell)
-          if (success && result && (name === 'overwrite_cell' || name === 'insert_cell' || name === 'delete_cell')) {
+          if (success && result && (name === 'overwrite_cell' || name === 'overwrite_cell_source' || name === 'insert_cell' || name === 'delete_cell')) {
             if (result.previous_content !== undefined || result.can_undo) {
               setUndoStack(prev => [...prev.slice(-9), {
-                type: name.replace('_cell', '') as 'overwrite' | 'insert' | 'delete',
+                type: name.replace('_cell', '').replace('_source', '') as 'overwrite' | 'insert' | 'delete',
                 cellIndex: result.cell_index,
                 previousContent: result.previous_content,
                 cellType: result.cell_type
               }]);
+            }
+            // Trigger markdown re-render if this was a markdown cell
+            if (result.cell_type === 'markdown' && result.cell_index !== undefined && labShell) {
+              console.log(`Markdown cell ${result.cell_index} modified, triggering re-render`);
+              setTimeout(() => {
+                const currentWidget = labShell.currentWidget;
+                if (currentWidget && (currentWidget as any).content) {
+                  const notebook = (currentWidget as any).content;
+                  if (notebook && notebook.widgets && notebook.widgets[result.cell_index]) {
+                    const cell = notebook.widgets[result.cell_index];
+                    if (cell.rendered !== undefined) {
+                      cell.rendered = true;
+                    }
+                  }
+                }
+              }, 100); // Small delay to ensure YDoc update is complete
             }
           }
         },

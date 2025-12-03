@@ -195,7 +195,56 @@ class MCPStreamingWebSocket(websocket.WebSocketHandler, JupyterHandler):
                     return
 
                 # Log message type for debugging
-                logger.debug(f"[WS MESSAGE TYPE] {type(message).__name__}")
+                msg_type_name = type(message).__name__
+                logger.info(f"[WS MESSAGE TYPE] {msg_type_name}")
+
+                # Handle ToolUseBlock as top-level message
+                if isinstance(message, ToolUseBlock):
+                    logger.info(f"[WS TOOL USE] {message.name}")
+                    await self.write_message(json.dumps({
+                        "type": "tool_call",
+                        "name": message.name,
+                        "args": message.input if hasattr(message, 'input') else {}
+                    }))
+                    continue
+
+                # Handle ToolResultBlock as top-level message
+                if isinstance(message, ToolResultBlock):
+                    tool_name = getattr(message, 'tool_use_id', 'unknown')
+                    is_error = getattr(message, 'is_error', False)
+                    logger.info(f"[WS TOOL RESULT] {tool_name} error={is_error}")
+
+                    # Try to parse result content
+                    result_data = None
+                    if hasattr(message, 'content'):
+                        try:
+                            if isinstance(message.content, str):
+                                result_data = json.loads(message.content)
+                            elif isinstance(message.content, list) and message.content:
+                                first = message.content[0]
+                                if hasattr(first, 'text'):
+                                    result_data = json.loads(first.text)
+                        except (json.JSONDecodeError, AttributeError):
+                            pass
+
+                    await self.write_message(json.dumps({
+                        "type": "tool_result",
+                        "name": tool_name,
+                        "success": not is_error,
+                        "result": result_data
+                    }))
+
+                    # Send cell_updated for markdown cells
+                    if result_data and 'cell_type' in result_data:
+                        cell_type = result_data.get('cell_type')
+                        cell_index = result_data.get('cell_index')
+                        if cell_type == 'markdown' and cell_index is not None:
+                            await self.write_message(json.dumps({
+                                "type": "cell_updated",
+                                "cell_type": "markdown",
+                                "cell_index": cell_index
+                            }))
+                    continue
 
                 if isinstance(message, AssistantMessage):
                     for block in message.content:

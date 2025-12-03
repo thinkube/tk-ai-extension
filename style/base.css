@@ -542,6 +542,9 @@
   border-bottom: 1px solid var(--tk-border);
   max-height: 150px;
   overflow-y: auto;
+  position: relative;
+  z-index: 10;
+  flex-shrink: 0;
 }
 
 .tk-tool-panel-header {
