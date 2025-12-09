@@ -121,6 +121,16 @@ class MCPStreamingWebSocket(websocket.WebSocketHandler, JupyterHandler):
                     }))
                     return
 
+                # Cancel any existing task before starting a new one
+                if self._current_task and not self._current_task.done():
+                    logger.info("Cancelling previous request before starting new one")
+                    self._cancelled = True
+                    self._current_task.cancel()
+                    try:
+                        await self._current_task
+                    except asyncio.CancelledError:
+                        pass
+
                 self._notebook_path = notebook_path
                 self._cancelled = False
 
