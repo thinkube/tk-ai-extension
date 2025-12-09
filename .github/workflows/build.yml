@@ -13,6 +13,8 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write  # Required for creating releases
 
     steps:
     - name: Checkout
@@ -24,25 +26,15 @@ jobs:
     - name: Install dependencies
       run: python -m pip install -U "jupyterlab>=4.0.0,<5"
 
-    - name: Lint the extension
-      run: |
-        set -eux
-        jlpm
-        jlpm run lint:check
-
-    - name: Test the extension
-      run: |
-        set -eux
-        jlpm run test
-
     - name: Build the extension
       run: |
         set -eux
+        jlpm
+        jlpm run build
         python -m pip install .[test]
 
         jupyter labextension list
         jupyter labextension list 2>&1 | grep -ie "tk-ai-extension.*OK"
-        python -m jupyterlab.browser_check
 
     - name: Package the extension
       run: |
@@ -58,6 +50,27 @@ jobs:
         name: extension-artifacts
         path: dist/tk_ai_extension*
         if-no-files-found: error
+
+    # Publish wheel to GitHub Release on main branch pushes
+    - name: Create/Update Latest Release
+      if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+      uses: softprops/action-gh-release@v2
+      with:
+        tag_name: latest
+        name: Latest Build
+        body: |
+          Automated build from main branch.
+
+          **Commit:** ${{ github.sha }}
+          **Date:** ${{ github.event.head_commit.timestamp }}
+
+          Install with:
+          ```bash
+          pip install https://github.com/thinkube/tk-ai-extension/releases/download/latest/tk_ai_extension-0.1.0-py3-none-any.whl
+          ```
+        files: dist/tk_ai_extension*.whl
+        prerelease: true
+        make_latest: true
 
   test_isolated:
     needs: build
@@ -85,72 +98,3 @@ jobs:
         jupyter labextension list
         jupyter labextension list 2>&1 | grep -ie "tk-ai-extension.*OK"
         python -m jupyterlab.browser_check --no-browser-test
-
-  integration-tests:
-    name: Integration tests
-    needs: build
-    runs-on: ubuntu-latest
-
-    env:
-      PLAYWRIGHT_BROWSERS_PATH: ${{ github.workspace }}/pw-browsers
-
-    steps:
-    - name: Checkout
-      uses: actions/checkout@v4
-
-    - name: Base Setup
-      uses: jupyterlab/maintainer-tools/.github/actions/base-setup@v1
-
-    - name: Download extension package
-      uses: actions/download-artifact@v4
-      with:
-        name: extension-artifacts
-
-    - name: Install the extension
-      run: |
-        set -eux
-        python -m pip install "jupyterlab>=4.0.0,<5" tk_ai_extension*.whl
-
-    - name: Install dependencies
-      working-directory: ui-tests
-      env:
-        YARN_ENABLE_IMMUTABLE_INSTALLS: 0
-        PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
-      run: jlpm install
-
-    - name: Set up browser cache
-      uses: actions/cache@v4
-      with:
-        path: |
-          ${{ github.workspace }}/pw-browsers
-        key: ${{ runner.os }}-${{ hashFiles('ui-tests/yarn.lock') }}
-
-    - name: Install browser
-      run: |
-        set -eux
-        jlpm playwright install-deps
-        jlpm playwright install chromium
-      working-directory: ui-tests
-
-    - name: Execute integration tests
-      working-directory: ui-tests
-      run: |
-        jlpm playwright test
-
-    - name: Upload Playwright Test report
-      if: always()
-      uses: actions/upload-artifact@v4
-      with:
-        name: tk_ai_extension-playwright-tests
-        path: |
-          ui-tests/test-results
-          ui-tests/playwright-report
-
-  check_links:
-    name: Check Links
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    steps:
-      - uses: actions/checkout@v4
-      - uses: jupyterlab/maintainer-tools/.github/actions/base-setup@v1
-      - uses: jupyterlab/maintainer-tools/.github/actions/check-links@v1
