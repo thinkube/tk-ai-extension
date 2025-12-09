@@ -59,13 +59,28 @@ class TKAIExtension(ExtensionApp):
         """Register all MCP tools with Claude Agent SDK."""
         from .agent.tools_registry import register_tool
 
-        # Basic notebook operations
+        # Frontend-delegated tools (execute via JupyterLab UI for real-time updates)
+        # These tools delegate to the frontend for:
+        # - Real-time UI updates when cells are modified
+        # - IOPub streaming for tqdm/progress bars
+        # - Reading fresh data from live notebook model
+        from .mcp.tools.frontend_delegated import (
+            ListCellsTool as FrontendListCellsTool,
+            ReadCellTool as FrontendReadCellTool,
+            ExecuteCellTool as FrontendExecuteCellTool,
+            InsertCellTool as FrontendInsertCellTool,
+            OverwriteCellTool as FrontendOverwriteCellTool,
+            DeleteCellTool as FrontendDeleteCellTool,
+            MoveCellTool as FrontendMoveCellTool,
+            InsertAndExecuteCellTool as FrontendInsertAndExecuteCellTool,
+            ExecuteAllCellsTool as FrontendExecuteAllCellsTool,
+        )
+
+        # Backend-only tools (don't need frontend delegation)
         from .mcp.tools.list_notebooks import ListNotebooksTool
-        from .mcp.tools.list_cells import ListCellsTool
-        from .mcp.tools.read_cell import ReadCellTool
         from .mcp.tools.list_kernels import ListKernelsTool
 
-        # Kernel management
+        # Kernel management (backend only - kernel operations don't need UI)
         from .mcp.tools.kernel import (
             RestartKernelTool,
             InterruptKernelTool,
@@ -73,38 +88,36 @@ class TKAIExtension(ExtensionApp):
             GetKernelStatusTool
         )
 
-        # Cell execution
+        # Async execution tracking (backend only)
         from .mcp.tools.execution import (
-            ExecuteCellTool,
-            InsertAndExecuteCellTool,
             ExecuteCellAsyncTool,
             CheckExecutionStatusTool,
-            ExecuteAllCellsTool,
             CheckAllCellsStatusTool
         )
 
-        # Cell manipulation
-        from .mcp.tools.manipulation import (
-            InsertCellTool,
-            DeleteCellTool,
-            OverwriteCellTool,
-            MoveCellTool
-        )
-
-        # Notebook connection
+        # Notebook connection (backend only)
         from .mcp.tools.use_notebook import UseNotebookTool
 
-        # Python environment introspection
+        # Python environment introspection (backend only)
         from .mcp.tools.introspection import (
             ListModulesTool,
             GetModuleInfoTool,
             CheckModuleTool
         )
 
-        # Register basic tools
+        # Register frontend-delegated tools (these delegate to JupyterLab UI)
+        register_tool(FrontendListCellsTool())
+        register_tool(FrontendReadCellTool())
+        register_tool(FrontendExecuteCellTool())
+        register_tool(FrontendInsertCellTool())
+        register_tool(FrontendOverwriteCellTool())
+        register_tool(FrontendDeleteCellTool())
+        register_tool(FrontendMoveCellTool())
+        register_tool(FrontendInsertAndExecuteCellTool())
+        register_tool(FrontendExecuteAllCellsTool())
+
+        # Register backend-only tools
         register_tool(ListNotebooksTool())
-        register_tool(ListCellsTool())
-        register_tool(ReadCellTool())
         register_tool(ListKernelsTool())
 
         # Register kernel management tools
@@ -113,19 +126,10 @@ class TKAIExtension(ExtensionApp):
         register_tool(ListRunningKernelsTool())
         register_tool(GetKernelStatusTool())
 
-        # Register execution tools
-        register_tool(ExecuteCellTool())
-        register_tool(InsertAndExecuteCellTool())
+        # Register async execution tools (backend tracking)
         register_tool(ExecuteCellAsyncTool())
         register_tool(CheckExecutionStatusTool())
-        register_tool(ExecuteAllCellsTool())
         register_tool(CheckAllCellsStatusTool())
-
-        # Register manipulation tools
-        register_tool(InsertCellTool())
-        register_tool(DeleteCellTool())
-        register_tool(OverwriteCellTool())
-        register_tool(MoveCellTool())
 
         # Register notebook connection tools
         register_tool(UseNotebookTool())

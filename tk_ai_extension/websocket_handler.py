@@ -40,8 +40,10 @@ class MCPStreamingWebSocket(websocket.WebSocketHandler, JupyterHandler):
     Protocol:
     - Client sends: {"type": "chat", "message": "...", "notebook_path": "..."}
     - Client sends: {"type": "cancel"} to abort current request
+    - Client sends: {"type": "tool_response", "id": "...", "result": {...}}
     - Server sends: {"type": "token", "content": "..."} for each token
     - Server sends: {"type": "tool_call", "name": "...", "args": {...}}
+    - Server sends: {"type": "tool_request", "id": "...", "name": "...", "args": {...}}
     - Server sends: {"type": "tool_result", "name": "...", "result": {...}}
     - Server sends: {"type": "done", "full_response": "..."}
     - Server sends: {"type": "error", "message": "..."}
@@ -62,11 +64,17 @@ class MCPStreamingWebSocket(websocket.WebSocketHandler, JupyterHandler):
         """Handle WebSocket connection opened."""
         logger.info("WebSocket connection opened")
         self._cancelled = False
+        # Register this WebSocket for frontend delegation
+        from .frontend_delegation import set_active_websocket
+        set_active_websocket(self)
 
     def on_close(self):
         """Handle WebSocket connection closed."""
         logger.info("WebSocket connection closed")
         self._cancel_current_request()
+        # Clear frontend delegation WebSocket
+        from .frontend_delegation import clear_active_websocket
+        clear_active_websocket()
 
     def _cancel_current_request(self):
         """Cancel any ongoing request."""
@@ -84,6 +92,15 @@ class MCPStreamingWebSocket(websocket.WebSocketHandler, JupyterHandler):
             if msg_type == 'cancel':
                 self._cancel_current_request()
                 await self.write_message(json.dumps({"type": "cancelled"}))
+                return
+
+            if msg_type == 'tool_response':
+                # Handle response from frontend tool execution
+                request_id = data.get('id')
+                result = data.get('result', {})
+                if request_id:
+                    from .frontend_delegation import handle_tool_response
+                    await handle_tool_response(request_id, result)
                 return
 
             if msg_type == 'chat':

@@ -123,6 +123,68 @@ export class NotebookTools {
   }
 
   /**
+   * List all cells in the notebook
+   */
+  listCells(notebookPath?: string): INotebookResult & {
+    cells?: Array<{
+      index: number;
+      type: string;
+      source: string;
+      executionCount?: number | null;
+    }>;
+  } {
+    const panel = this.getNotebook(notebookPath);
+    if (!panel) {
+      return {
+        success: false,
+        error: notebookPath
+          ? `Notebook not found: ${notebookPath}`
+          : 'No active notebook'
+      };
+    }
+
+    const model = panel.content.model;
+    if (!model) {
+      return {
+        success: false,
+        error: 'No notebook model available'
+      };
+    }
+
+    const cells: Array<{
+      index: number;
+      type: string;
+      source: string;
+      executionCount?: number | null;
+    }> = [];
+
+    for (let i = 0; i < model.cells.length; i++) {
+      const cell = model.cells.get(i);
+      const cellData: {
+        index: number;
+        type: string;
+        source: string;
+        executionCount?: number | null;
+      } = {
+        index: i,
+        type: cell.type,
+        source: cell.sharedModel.getSource()
+      };
+
+      if (cell.type === 'code') {
+        cellData.executionCount = (cell as ICodeCellModel).executionCount;
+      }
+
+      cells.push(cellData);
+    }
+
+    return {
+      success: true,
+      cells
+    };
+  }
+
+  /**
    * Get cell content and info
    */
   getCellInfo(cellIndex: number, notebookPath?: string): INotebookResult & {
@@ -358,6 +420,64 @@ export class NotebookTools {
       cellIndex,
       cellType,
       deletedContent
+    };
+  }
+
+  /**
+   * Move a cell from one position to another
+   */
+  moveCell(
+    fromIndex: number,
+    toIndex: number,
+    notebookPath?: string
+  ): INotebookResult {
+    const panel = this.getNotebook(notebookPath);
+    if (!panel) {
+      return {
+        success: false,
+        error: notebookPath
+          ? `Notebook not found: ${notebookPath}`
+          : 'No active notebook'
+      };
+    }
+
+    const model = panel.content.model;
+    if (!model) {
+      return {
+        success: false,
+        error: 'No notebook model available'
+      };
+    }
+
+    if (fromIndex < 0 || fromIndex >= model.cells.length) {
+      return {
+        success: false,
+        error: `Invalid source index: ${fromIndex}. Notebook has ${model.cells.length} cells.`
+      };
+    }
+
+    if (toIndex < 0 || toIndex >= model.cells.length) {
+      return {
+        success: false,
+        error: `Invalid target index: ${toIndex}. Notebook has ${model.cells.length} cells.`
+      };
+    }
+
+    if (fromIndex === toIndex) {
+      return {
+        success: true,
+        message: `Cell already at index ${toIndex}`,
+        cellIndex: toIndex
+      };
+    }
+
+    // Move using shared model
+    model.sharedModel.moveCell(fromIndex, toIndex);
+
+    return {
+      success: true,
+      message: `Cell moved from ${fromIndex} to ${toIndex}`,
+      cellIndex: toIndex
     };
   }
 

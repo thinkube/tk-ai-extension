@@ -627,6 +627,141 @@ export const ChatPanel = React.forwardRef<any, IChatPanelProps>(({ client, noteb
             }
           }
         },
+        // FRONTEND DELEGATION: Handle tool requests from backend
+        // Backend sends tool_request, frontend executes using NotebookTools, returns result
+        onToolRequest: async (requestId: string, toolName: string, args: any): Promise<any> => {
+          console.log(`[Frontend Delegation] Received tool_request: ${toolName}`, args);
+
+          if (!notebookTools) {
+            console.error('[Frontend Delegation] NotebookTools not available');
+            return { success: false, error: 'NotebookTools not available' };
+          }
+
+          const nbPath = args.notebook_path || activeNotebookPath || undefined;
+
+          try {
+            switch (toolName) {
+              case 'list_cells': {
+                const result = notebookTools.listCells(nbPath);
+                console.log(`[Frontend Delegation] list_cells result:`, result);
+                return result;
+              }
+
+              case 'read_cell': {
+                const cellIndex = args.cell_index ?? args.cellIndex;
+                if (cellIndex === undefined) {
+                  return { success: false, error: 'cell_index is required' };
+                }
+                const result = notebookTools.getCellInfo(cellIndex, nbPath);
+                console.log(`[Frontend Delegation] read_cell result:`, result);
+                return result;
+              }
+
+              case 'execute_cell': {
+                const cellIndex = args.cell_index ?? args.cellIndex;
+                if (cellIndex === undefined) {
+                  return { success: false, error: 'cell_index is required' };
+                }
+                console.log(`[Frontend Delegation] Executing cell ${cellIndex} with IOPub streaming`);
+                setIsExecutingInBackground(true);
+                setExecutingCellIndex(cellIndex);
+                setExecutionOutput('');
+
+                let outputBuffer = '';
+                const execCallbacks: IExecutionCallbacks = {
+                  onStream: (text, name) => {
+                    outputBuffer += text;
+                    setExecutionOutput(prev => prev + text);
+                  },
+                  onDisplayData: (data) => {
+                    if (data['text/plain']) {
+                      outputBuffer += data['text/plain'] + '\n';
+                      setExecutionOutput(prev => prev + data['text/plain'] + '\n');
+                    }
+                  },
+                  onExecuteResult: (data, metadata, execCount) => {
+                    if (data['text/plain']) {
+                      outputBuffer += `Out[${execCount}]: ${data['text/plain']}\n`;
+                    }
+                  },
+                  onError: (ename, evalue, traceback) => {
+                    outputBuffer += `${ename}: ${evalue}\n${traceback.join('\n')}`;
+                  }
+                };
+
+                const result = await notebookTools.executeCell(cellIndex, nbPath, execCallbacks);
+                setIsExecutingInBackground(false);
+                setExecutingCellIndex(null);
+                console.log(`[Frontend Delegation] execute_cell result:`, result);
+                return { ...result, output: outputBuffer };
+              }
+
+              case 'insert_cell': {
+                const content = args.content ?? args.source ?? '';
+                const cellType = args.cell_type ?? 'code';
+                const position = args.position ?? 'end';
+                const result = notebookTools.addCell(content, cellType, position, nbPath);
+                console.log(`[Frontend Delegation] insert_cell result:`, result);
+                return result;
+              }
+
+              case 'overwrite_cell':
+              case 'overwrite_cell_source': {
+                const cellIndex = args.cell_index ?? args.cellIndex;
+                const content = args.content ?? args.source ?? args.new_source ?? '';
+                if (cellIndex === undefined) {
+                  return { success: false, error: 'cell_index is required' };
+                }
+                const result = notebookTools.updateCell(cellIndex, content, nbPath);
+                console.log(`[Frontend Delegation] overwrite_cell result:`, result);
+                return result;
+              }
+
+              case 'delete_cell': {
+                const cellIndex = args.cell_index ?? args.cellIndex;
+                if (cellIndex === undefined) {
+                  return { success: false, error: 'cell_index is required' };
+                }
+                const result = notebookTools.deleteCell(cellIndex, nbPath);
+                console.log(`[Frontend Delegation] delete_cell result:`, result);
+                return result;
+              }
+
+              case 'move_cell': {
+                const fromIndex = args.from_index ?? args.fromIndex;
+                const toIndex = args.to_index ?? args.toIndex;
+                if (fromIndex === undefined || toIndex === undefined) {
+                  return { success: false, error: 'from_index and to_index are required' };
+                }
+                const result = notebookTools.moveCell(fromIndex, toIndex, nbPath);
+                console.log(`[Frontend Delegation] move_cell result:`, result);
+                return result;
+              }
+
+              case 'insert_and_execute_cell': {
+                const content = args.content ?? args.source ?? '';
+                const position = args.position ?? 'below';
+                const result = await notebookTools.insertAndExecute(content, position, nbPath);
+                console.log(`[Frontend Delegation] insert_and_execute_cell result:`, result);
+                return result;
+              }
+
+              case 'execute_all_cells': {
+                const result = await notebookTools.executeAllCells(nbPath);
+                console.log(`[Frontend Delegation] execute_all_cells result:`, result);
+                return result;
+              }
+
+              default:
+                console.warn(`[Frontend Delegation] Unknown tool: ${toolName}`);
+                return { success: false, error: `Unknown tool: ${toolName}` };
+            }
+          } catch (error) {
+            const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+            console.error(`[Frontend Delegation] Error executing ${toolName}:`, errorMsg);
+            return { success: false, error: errorMsg };
+          }
+        },
         onDone: (fullResponse: string) => {
           const assistantMessage: IChatMessage = {
             role: 'assistant',

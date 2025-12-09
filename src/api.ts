@@ -44,6 +44,7 @@ export type StreamingMessageType =
   | 'token'
   | 'tool_call'
   | 'tool_result'
+  | 'tool_request'
   | 'cell_updated'
   | 'done'
   | 'error'
@@ -54,6 +55,7 @@ export type StreamingMessageType =
  */
 export interface IStreamingMessage {
   type: StreamingMessageType;
+  id?: string;  // For tool_request/tool_response
   content?: string;
   name?: string;
   args?: any;
@@ -83,6 +85,7 @@ export interface IStreamingCallbacks {
   onToken: (token: string) => void;
   onToolCall?: (name: string, args: any) => void;
   onToolResult?: (name: string, success: boolean, result?: any) => void;
+  onToolRequest?: (id: string, name: string, args: any) => Promise<any>;  // Frontend delegation
   onCellUpdated?: (cellType: string, cellIndex: number) => void;
   onDone: (fullResponse: string) => void;
   onError: (error: string) => void;
@@ -253,6 +256,21 @@ export class MCPClient {
           }
           break;
 
+        case 'tool_request':
+          // Frontend delegation: backend requests frontend to execute a tool
+          if (this.streamingCallbacks.onToolRequest && msg.id && msg.name) {
+            this.streamingCallbacks.onToolRequest(msg.id, msg.name, msg.args || {})
+              .then(result => {
+                // Send result back to backend
+                this.sendToolResponse(msg.id!, result);
+              })
+              .catch(error => {
+                // Send error back to backend
+                this.sendToolResponse(msg.id!, { success: false, error: error.message });
+              });
+          }
+          break;
+
         case 'done':
           this.streamingCallbacks.onDone(msg.full_response || '');
           break;
@@ -301,6 +319,22 @@ export class MCPClient {
   cancelStreaming(): void {
     if (this.ws && this.ws.readyState === WebSocket.OPEN) {
       this.ws.send(JSON.stringify({ type: 'cancel' }));
+    }
+  }
+
+  /**
+   * Send tool response back to backend (for frontend delegation)
+   */
+  sendToolResponse(requestId: string, result: any): void {
+    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+      this.ws.send(JSON.stringify({
+        type: 'tool_response',
+        id: requestId,
+        result: result
+      }));
+      console.log(`[Frontend] Sent tool_response for request ${requestId}`);
+    } else {
+      console.error(`[Frontend] Cannot send tool_response - WebSocket not connected`);
     }
   }
 
