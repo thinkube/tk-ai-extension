@@ -10,6 +10,19 @@ import { JupyterFrontEnd } from '@jupyterlab/application';
 import { MCPClient, IChatMessage, IStreamingCallbacks, IToolExecution } from '../api';
 import { NotebookTools, IExecutionCallbacks } from '../notebook-tools';
 import { renderMarkdown } from '../utils/markdown';
+import {
+  FileText,
+  Download,
+  Wrench,
+  Trash2,
+  X,
+  Loader2,
+  CheckCircle2,
+  XCircle,
+  Clock,
+  ChevronDown,
+  ChevronUp
+} from 'lucide-react';
 
 /**
  * Props for ChatPanel component
@@ -889,14 +902,49 @@ export const ChatPanel = React.forwardRef<any, IChatPanelProps>(({ client, noteb
   };
 
   /**
-   * Get tool status icon
+   * Get tool status icon component
    */
-  const getToolStatusIcon = (status: 'running' | 'completed' | 'error'): string => {
+  const getToolStatusIcon = (status: 'running' | 'completed' | 'error') => {
     switch (status) {
-      case 'running': return '⏳';
-      case 'completed': return '✅';
-      case 'error': return '❌';
+      case 'running':
+        return <Loader2 size={14} className="tk-tool-icon tk-tool-icon-running" />;
+      case 'completed':
+        return <CheckCircle2 size={14} className="tk-tool-icon tk-tool-icon-completed" />;
+      case 'error':
+        return <XCircle size={14} className="tk-tool-icon tk-tool-icon-error" />;
     }
+  };
+
+  /**
+   * Format duration for display
+   */
+  const formatDuration = (startTime: Date, endTime?: Date): string => {
+    const end = endTime || new Date();
+    const ms = end.getTime() - startTime.getTime();
+    if (ms < 1000) {
+      return `${ms}ms`;
+    } else if (ms < 60000) {
+      return `${(ms / 1000).toFixed(1)}s`;
+    } else {
+      const mins = Math.floor(ms / 60000);
+      const secs = ((ms % 60000) / 1000).toFixed(0);
+      return `${mins}m ${secs}s`;
+    }
+  };
+
+  // State to track expanded tool details
+  const [expandedTools, setExpandedTools] = useState<Set<number>>(new Set());
+
+  const toggleToolExpanded = (idx: number) => {
+    setExpandedTools(prev => {
+      const next = new Set(prev);
+      if (next.has(idx)) {
+        next.delete(idx);
+      } else {
+        next.add(idx);
+      }
+      return next;
+    });
   };
 
   // Debug logging for indicator state
@@ -908,12 +956,13 @@ export const ChatPanel = React.forwardRef<any, IChatPanelProps>(({ client, noteb
       {connectedNotebook && (
         <div className="tk-notebook-navbar">
           <div className="tk-notebook-info">
-            <span className="tk-notebook-icon">📓</span>
+            <FileText size={16} className="tk-notebook-icon" />
             <span className="tk-notebook-name">{connectedNotebook}</span>
             {isRestoring && <span className="tk-notebook-restoring">(restoring...)</span>}
             {isExecutingInBackground && (
               <span className="tk-notebook-executing">
-                ⚙️ Executing cell {executingCellIndex !== null ? executingCellIndex : '...'}
+                <Loader2 size={14} className="tk-spin" />
+                <span>Cell {executingCellIndex !== null ? executingCellIndex : '...'}</span>
               </span>
             )}
           </div>
@@ -924,14 +973,17 @@ export const ChatPanel = React.forwardRef<any, IChatPanelProps>(({ client, noteb
               disabled={messages.length === 0}
               title="Export conversation to markdown"
             >
-              📥
+              <Download size={16} />
             </button>
             <button
-              className="tk-navbar-button"
+              className={`tk-navbar-button ${showToolPanel ? 'tk-navbar-button-active' : ''}`}
               onClick={() => setShowToolPanel(!showToolPanel)}
               title={showToolPanel ? 'Hide tool activity' : 'Show tool activity'}
             >
-              🔧
+              <Wrench size={16} />
+              {toolExecutions.length > 0 && (
+                <span className="tk-tool-badge">{toolExecutions.length}</span>
+              )}
             </button>
             <button
               className="tk-navbar-button tk-clear-button"
@@ -939,7 +991,7 @@ export const ChatPanel = React.forwardRef<any, IChatPanelProps>(({ client, noteb
               disabled={isLoading || messages.length === 0}
               title="Clear conversation history"
             >
-              🗑️
+              <Trash2 size={16} />
             </button>
           </div>
         </div>
@@ -965,30 +1017,81 @@ export const ChatPanel = React.forwardRef<any, IChatPanelProps>(({ client, noteb
       {showToolPanel && (
         <div className="tk-tool-panel">
           <div className="tk-tool-panel-header">
-            <span>Tool Activity</span>
-            <button
-              className="tk-tool-panel-close"
-              onClick={() => setShowToolPanel(false)}
-              title="Close panel"
-            >
-              ✕
-            </button>
+            <div className="tk-tool-panel-title">
+              <Wrench size={14} />
+              <span>Tool Activity</span>
+              {toolExecutions.length > 0 && (
+                <span className="tk-tool-count">({toolExecutions.length})</span>
+              )}
+            </div>
+            <div className="tk-tool-panel-actions">
+              {toolExecutions.length > 0 && (
+                <button
+                  className="tk-tool-panel-clear"
+                  onClick={() => setToolExecutions([])}
+                  title="Clear history"
+                >
+                  <Trash2 size={12} />
+                </button>
+              )}
+              <button
+                className="tk-tool-panel-close"
+                onClick={() => setShowToolPanel(false)}
+                title="Close panel"
+              >
+                <X size={14} />
+              </button>
+            </div>
           </div>
           <div className="tk-tool-list">
             {toolExecutions.length === 0 ? (
-              <div className="tk-tool-empty">No tool activity yet</div>
+              <div className="tk-tool-empty">
+                <Wrench size={24} className="tk-tool-empty-icon" />
+                <span>No tool activity yet</span>
+              </div>
             ) : (
-              toolExecutions.map((exec, idx) => (
-                <div key={idx} className={`tk-tool-item tk-tool-${exec.status}`}>
-                  <span className="tk-tool-status">{getToolStatusIcon(exec.status)}</span>
-                  <span className="tk-tool-name">{formatToolName(exec.name)}</span>
-                  {exec.endTime && (
-                    <span className="tk-tool-duration">
-                      {Math.round((exec.endTime.getTime() - exec.startTime.getTime()) / 1000)}s
-                    </span>
-                  )}
-                </div>
-              ))
+              toolExecutions.slice().reverse().map((exec, idx) => {
+                const realIdx = toolExecutions.length - 1 - idx;
+                const isExpanded = expandedTools.has(realIdx);
+                return (
+                  <div
+                    key={realIdx}
+                    className={`tk-tool-item tk-tool-${exec.status}`}
+                    onClick={() => toggleToolExpanded(realIdx)}
+                  >
+                    <div className="tk-tool-item-header">
+                      <span className="tk-tool-status">{getToolStatusIcon(exec.status)}</span>
+                      <span className="tk-tool-name">{formatToolName(exec.name)}</span>
+                      <span className="tk-tool-time">
+                        <Clock size={10} />
+                        {exec.startTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                      </span>
+                      <span className="tk-tool-duration">
+                        {formatDuration(exec.startTime, exec.endTime)}
+                      </span>
+                      <span className="tk-tool-expand">
+                        {isExpanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+                      </span>
+                    </div>
+                    {isExpanded && exec.args && Object.keys(exec.args).length > 0 && (
+                      <div className="tk-tool-item-details">
+                        <div className="tk-tool-args">
+                          {Object.entries(exec.args).map(([key, value]) => (
+                            <div key={key} className="tk-tool-arg">
+                              <span className="tk-tool-arg-key">{key}:</span>
+                              <span className="tk-tool-arg-value">
+                                {typeof value === 'string' && value.length > 100
+                                  ? value.substring(0, 100) + '...'
+                                  : String(value)}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })
             )}
           </div>
         </div>

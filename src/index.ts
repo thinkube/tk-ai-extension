@@ -21,7 +21,6 @@ import { ToolbarButton } from '@jupyterlab/apputils';
 import { ChatWidget } from './widget';
 import { MCPClient } from './api';
 import { NotebookTools } from './notebook-tools';
-import { ServerConnection } from '@jupyterlab/services';
 
 /**
  * The command IDs
@@ -165,85 +164,6 @@ const plugin: JupyterFrontEndPlugin<void> = {
       });
 
       console.log('tk-ai-extension: Notebook tracking enabled');
-
-      // CRITICAL: Set document_id in notebook shared model for RTC execution
-      // This is needed because jupyter-server-nbmodel executor reads document_id
-      // from notebook.sharedModel.getState('document_id') but nothing was setting it
-      // (the disabled @jupyter/docprovider-extension:notebook-cell-executor used to do this)
-      const setDocumentId = async (panel: NotebookPanel) => {
-        if (!panel) return;
-
-        try {
-          await panel.context.ready;
-
-          if (!panel.content?.model?.sharedModel) {
-            console.warn('tk-ai-extension: SharedModel not available');
-            return;
-          }
-
-          const sharedModel = panel.content.model.sharedModel as any;
-
-          // ALWAYS fetch the correct UUID-based document_id from backend
-          // (collaboration extension may have set a wrong path-based value)
-          const path = panel.context.path;
-          if (!path) {
-            console.error('tk-ai-extension: No path available, cannot fetch file_id');
-            return;
-          }
-
-          let documentId: string;
-          try {
-            // Use ServerConnection for authenticated requests
-            const settings = ServerConnection.makeSettings();
-            const apiUrl = `${settings.baseUrl}api/tk-ai/fileid?path=${encodeURIComponent(path)}`;
-
-            const response = await ServerConnection.makeRequest(apiUrl, {}, settings);
-
-            if (response.ok) {
-              const data = await response.json();
-              documentId = data.document_id; // Format: json:notebook:{uuid}
-              console.log(`tk-ai-extension: Fetched document_id from backend: ${documentId}`);
-            } else {
-              console.error(`tk-ai-extension: Failed to fetch file_id from ${apiUrl}, status: ${response.status}. Manual execution will NOT work.`);
-              return;
-            }
-          } catch (fetchErr) {
-            console.error('tk-ai-extension: Error fetching file_id:', fetchErr, '. Manual execution will NOT work.');
-            return;
-          }
-
-          if (documentId && typeof sharedModel.setState === 'function') {
-            sharedModel.setState('document_id', documentId);
-            console.log(`tk-ai-extension: Set document_id for notebook: ${documentId}`);
-
-            // VERIFY it was actually persisted
-            const verifyDocId = sharedModel.getState?.('document_id');
-            if (verifyDocId === documentId) {
-              console.log(`tk-ai-extension: VERIFIED document_id persisted: ${verifyDocId}`);
-            } else {
-              console.error(`tk-ai-extension: FAILED to persist document_id! Set: ${documentId}, Read back: ${verifyDocId}`);
-            }
-          } else {
-            console.error('tk-ai-extension: Could not determine document_id or setState not available');
-          }
-        } catch (err) {
-          console.error('tk-ai-extension: Error setting document_id:', err);
-        }
-      };
-
-      // Set document_id for currently active notebook
-      notebookTracker.currentChanged.connect((_sender, panel) => {
-        if (panel) {
-          void setDocumentId(panel);
-        }
-      });
-
-      // Set document_id for already open notebooks
-      notebookTracker.forEach((panel) => {
-        void setDocumentId(panel);
-      });
-
-      console.log('tk-ai-extension: document_id initialization enabled');
     }
 
     // Command to open chat (keep for programmatic access)

@@ -149,8 +149,7 @@ class TKAIExtension(ExtensionApp):
             MCPChatHandler,
             SessionCloseHandler,
             NotebookConnectHandler,
-            ClearConversationHandler,
-            FileIdHandler
+            ClearConversationHandler
         )
         from .websocket_handler import MCPStreamingWebSocket
 
@@ -163,7 +162,6 @@ class TKAIExtension(ExtensionApp):
             (r"/api/tk-ai/mcp/session/close", SessionCloseHandler),
             (r"/api/tk-ai/mcp/notebook/connect", NotebookConnectHandler),
             (r"/api/tk-ai/mcp/conversation/clear", ClearConversationHandler),
-            (r"/api/tk-ai/fileid", FileIdHandler),
             # WebSocket endpoint for streaming responses
             (r"/api/tk-ai/mcp/stream", MCPStreamingWebSocket),
         ])

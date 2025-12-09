@@ -430,63 +430,6 @@ class SessionCloseHandler(JupyterHandler):
             self.finish({"error": str(e)})
 
 
-class FileIdHandler(JupyterHandler):
-    """Get file_id UUID for a given notebook path."""
-
-    @web.authenticated
-    async def get(self):
-        """GET /api/tk-ai/fileid?path=notebook/path.ipynb
-
-        Returns:
-        {
-            "file_id": "uuid-string",
-            "path": "notebook/path.ipynb"
-        }
-        """
-        try:
-            path = self.get_argument('path', None)
-
-            if not path:
-                self.set_status(400)
-                self.finish({"error": "path parameter is required"})
-                return
-
-            # Get file_id_manager from serverapp
-            serverapp = self.settings.get('serverapp')
-            if not serverapp:
-                self.set_status(500)
-                self.finish({"error": "ServerApp not available"})
-                return
-
-            file_id_manager = serverapp.web_app.settings.get("file_id_manager")
-            if not file_id_manager:
-                self.set_status(500)
-                self.finish({"error": "file_id_manager not available"})
-                return
-
-            # Convert relative path to absolute if needed
-            from pathlib import Path
-            if not Path(path).is_absolute():
-                root_dir = serverapp.root_dir
-                abs_path = str(Path(root_dir) / path)
-            else:
-                abs_path = path
-
-            # Get file_id
-            file_id = file_id_manager.get_id(abs_path)
-
-            self.finish({
-                "file_id": file_id,
-                "path": path,
-                "document_id": f"json:notebook:{file_id}"
-            })
-
-        except Exception as e:
-            self.log.error(f"Error getting file_id: {e}")
-            self.set_status(500)
-            self.finish({"error": str(e)})
-
-
 class NotebookConnectHandler(JupyterHandler):
     """Connect to a notebook and load conversation history."""
 

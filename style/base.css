@@ -515,19 +515,23 @@
 }
 
 .tk-navbar-button {
-  background-color: rgba(255, 255, 255, 0.2);
-  border: 1px solid rgba(255, 255, 255, 0.3);
+  background-color: rgba(255, 255, 255, 0.15);
+  border: 1px solid rgba(255, 255, 255, 0.25);
   color: white;
-  border-radius: 4px;
-  padding: 4px 8px;
+  border-radius: 6px;
+  padding: 6px 8px;
   font-size: 14px;
   cursor: pointer;
   transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
 }
 
 .tk-navbar-button:hover:not(:disabled) {
-  background-color: rgba(255, 255, 255, 0.3);
-  border-color: rgba(255, 255, 255, 0.5);
+  background-color: rgba(255, 255, 255, 0.25);
+  border-color: rgba(255, 255, 255, 0.4);
   transform: scale(1.05);
 }
 
@@ -536,11 +540,47 @@
   cursor: not-allowed;
 }
 
+.tk-navbar-button-active {
+  background-color: rgba(255, 255, 255, 0.3);
+  border-color: rgba(255, 255, 255, 0.5);
+}
+
+.tk-tool-badge {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  background-color: var(--tk-accent);
+  color: white;
+  font-size: 9px;
+  font-weight: 700;
+  min-width: 14px;
+  height: 14px;
+  border-radius: 7px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 3px;
+}
+
+/* Spinning animation for loader icons */
+.tk-spin {
+  animation: tk-spin 1s linear infinite;
+}
+
+@keyframes tk-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 /* Tool Activity Panel */
 .tk-tool-panel {
   background-color: var(--tk-bg-secondary);
   border-bottom: 1px solid var(--tk-border);
-  max-height: 150px;
+  max-height: 250px;
   overflow-y: auto;
   position: relative;
   z-index: 10;
@@ -557,18 +597,43 @@
   color: var(--tk-text-secondary);
   border-bottom: 1px solid var(--tk-border);
   background-color: var(--tk-bg);
+  position: sticky;
+  top: 0;
+  z-index: 1;
 }
 
+.tk-tool-panel-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.tk-tool-count {
+  font-weight: 400;
+  color: var(--tk-text-muted);
+}
+
+.tk-tool-panel-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.tk-tool-panel-clear,
 .tk-tool-panel-close {
   background: none;
   border: none;
   color: var(--tk-text-muted);
   cursor: pointer;
-  font-size: 12px;
-  padding: 2px 6px;
-  border-radius: 3px;
+  padding: 4px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
 }
 
+.tk-tool-panel-clear:hover,
 .tk-tool-panel-close:hover {
   background-color: var(--tk-border);
   color: var(--tk-text);
@@ -578,58 +643,146 @@
   padding: 8px;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 6px;
 }
 
 .tk-tool-item {
   display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 6px 10px;
-  border-radius: 4px;
+  flex-direction: column;
+  padding: 8px 10px;
+  border-radius: 6px;
   font-size: 12px;
   background-color: var(--tk-bg);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.tk-tool-item:hover {
+  background-color: var(--tk-bg-secondary);
+}
+
+.tk-tool-item-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .tk-tool-item.tk-tool-running {
-  background-color: rgba(52, 152, 219, 0.1);
+  background-color: rgba(52, 152, 219, 0.08);
   border-left: 3px solid var(--tk-info);
 }
 
 .tk-tool-item.tk-tool-completed {
-  background-color: rgba(0, 200, 150, 0.1);
+  background-color: rgba(0, 200, 150, 0.08);
   border-left: 3px solid var(--tk-success);
 }
 
 .tk-tool-item.tk-tool-error {
-  background-color: rgba(231, 76, 60, 0.1);
+  background-color: rgba(231, 76, 60, 0.08);
   border-left: 3px solid var(--tk-error);
 }
 
 .tk-tool-status {
-  font-size: 14px;
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.tk-tool-icon {
+  flex-shrink: 0;
+}
+
+.tk-tool-icon-running {
+  color: var(--tk-info);
+  animation: tk-spin 1s linear infinite;
+}
+
+.tk-tool-icon-completed {
+  color: var(--tk-success);
+}
+
+.tk-tool-icon-error {
+  color: var(--tk-error);
 }
 
 .tk-tool-name {
   flex: 1;
   font-weight: 500;
   color: var(--tk-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tk-tool-time {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 10px;
+  color: var(--tk-text-muted);
+  flex-shrink: 0;
 }
 
 .tk-tool-duration {
   font-size: 10px;
-  color: var(--tk-text-muted);
+  color: var(--tk-text-secondary);
   background-color: var(--tk-bg-secondary);
   padding: 2px 6px;
   border-radius: 10px;
+  font-weight: 500;
+  flex-shrink: 0;
+}
+
+.tk-tool-expand {
+  display: flex;
+  align-items: center;
+  color: var(--tk-text-muted);
+  flex-shrink: 0;
+}
+
+.tk-tool-item-details {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--tk-border);
+}
+
+.tk-tool-args {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.tk-tool-arg {
+  display: flex;
+  gap: 6px;
+  font-size: 11px;
+  font-family: 'Fira Code', 'JetBrains Mono', monospace;
+}
+
+.tk-tool-arg-key {
+  color: var(--tk-primary);
+  font-weight: 500;
+  flex-shrink: 0;
+}
+
+.tk-tool-arg-value {
+  color: var(--tk-text-secondary);
+  word-break: break-all;
 }
 
 .tk-tool-empty {
-  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
   color: var(--tk-text-muted);
   font-size: 12px;
-  padding: 12px;
-  font-style: italic;
+  padding: 24px 12px;
+}
+
+.tk-tool-empty-icon {
+  opacity: 0.3;
 }
 
 /* WebSocket reconnecting indicator */
