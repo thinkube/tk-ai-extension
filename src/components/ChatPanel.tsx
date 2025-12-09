@@ -8,6 +8,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { JupyterFrontEnd } from '@jupyterlab/application';
 import { MCPClient, IChatMessage, IStreamingCallbacks, IToolExecution } from '../api';
+import { NotebookTools, IExecutionCallbacks } from '../notebook-tools';
 import { renderMarkdown } from '../utils/markdown';
 
 /**
@@ -17,13 +18,14 @@ export interface IChatPanelProps {
   client: MCPClient;
   notebookPath: string | null;
   labShell: JupyterFrontEnd.IShell | null;
+  notebookTools: NotebookTools | null;
 }
 
 /**
  * Chat Panel Component
  * Provides a chat interface for interacting with Claude AI
  */
-export const ChatPanel = React.forwardRef<any, IChatPanelProps>(({ client, notebookPath, labShell }, ref) => {
+export const ChatPanel = React.forwardRef<any, IChatPanelProps>(({ client, notebookPath, labShell, notebookTools }, ref) => {
   /**
    * Get the currently active notebook path at the time of sending a message
    */
@@ -101,6 +103,7 @@ export const ChatPanel = React.forwardRef<any, IChatPanelProps>(({ client, noteb
   const [toolExecutions, setToolExecutions] = useState<IToolExecution[]>([]);
   const [showToolPanel, setShowToolPanel] = useState(false);
   const [useStreaming] = useState(true);
+  const [executionOutput, setExecutionOutput] = useState<string>('');  // Real-time cell output
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const pollingIntervalRef = useRef<number | null>(null);
   const activeExecutionIdRef = useRef<string | null>(null);
@@ -131,6 +134,115 @@ export const ChatPanel = React.forwardRef<any, IChatPanelProps>(({ client, noteb
       startExecutionPolling(executionId, cellIndex);
     }
   }));
+
+  /**
+   * Execute a cell using frontend NotebookTools with IOPub streaming
+   * This enables real-time output including tqdm progress bars
+   */
+  const executeCellFrontend = async (cellIndex: number): Promise<{
+    success: boolean;
+    error?: string;
+    output?: string;
+  }> => {
+    if (!notebookTools) {
+      console.error('NotebookTools not available for frontend execution');
+      return { success: false, error: 'NotebookTools not available' };
+    }
+
+    console.log(`[Frontend Execution] Starting cell ${cellIndex} with IOPub streaming`);
+    setIsExecutingInBackground(true);
+    setExecutingCellIndex(cellIndex);
+    setExecutionOutput('');
+
+    let outputBuffer = '';
+
+    const callbacks: IExecutionCallbacks = {
+      onStream: (text: string, name: 'stdout' | 'stderr') => {
+        console.log(`[IOPub ${name}]`, text);
+        outputBuffer += text;
+        setExecutionOutput(prev => prev + text);
+      },
+      onDisplayData: (data: any, metadata: any) => {
+        console.log('[IOPub display_data]', data);
+        // Handle rich display data (images, HTML, etc.)
+        if (data['text/plain']) {
+          outputBuffer += data['text/plain'] + '\n';
+          setExecutionOutput(prev => prev + data['text/plain'] + '\n');
+        }
+      },
+      onExecuteResult: (data: any, metadata: any, executionCount: number) => {
+        console.log(`[IOPub execute_result] [${executionCount}]`, data);
+        if (data['text/plain']) {
+          outputBuffer += `Out[${executionCount}]: ${data['text/plain']}\n`;
+          setExecutionOutput(prev => prev + `Out[${executionCount}]: ${data['text/plain']}\n`);
+        }
+      },
+      onError: (ename: string, evalue: string, traceback: string[]) => {
+        console.error(`[IOPub error] ${ename}: ${evalue}`);
+        const errorText = `${ename}: ${evalue}\n${traceback.join('\n')}`;
+        outputBuffer += errorText;
+        setExecutionOutput(prev => prev + errorText);
+      },
+      onStatus: (status: string) => {
+        console.log(`[IOPub status] ${status}`);
+      }
+    };
+
+    try {
+      const result = await notebookTools.executeCell(cellIndex, notebookPath || undefined, callbacks);
+
+      setIsExecutingInBackground(false);
+      setExecutingCellIndex(null);
+
+      if (result.success) {
+        console.log(`[Frontend Execution] Cell ${cellIndex} completed successfully`);
+        return { success: true, output: outputBuffer };
+      } else {
+        console.error(`[Frontend Execution] Cell ${cellIndex} failed:`, result.error);
+        return { success: false, error: result.error, output: outputBuffer };
+      }
+    } catch (error) {
+      setIsExecutingInBackground(false);
+      setExecutingCellIndex(null);
+      const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+      console.error(`[Frontend Execution] Cell ${cellIndex} exception:`, errorMsg);
+      return { success: false, error: errorMsg, output: outputBuffer };
+    }
+  };
+
+  /**
+   * Add a cell and optionally execute it using frontend tools
+   */
+  const addCellFrontend = (
+    content: string,
+    cellType: 'code' | 'markdown' = 'code',
+    position: 'above' | 'below' | 'end' = 'end'
+  ): { success: boolean; cellIndex?: number; error?: string } => {
+    if (!notebookTools) {
+      console.error('NotebookTools not available');
+      return { success: false, error: 'NotebookTools not available' };
+    }
+
+    const result = notebookTools.addCell(content, cellType, position, notebookPath || undefined);
+    console.log(`[Frontend] Added ${cellType} cell:`, result);
+    return result;
+  };
+
+  /**
+   * Update cell content using frontend tools
+   */
+  const updateCellFrontend = (
+    cellIndex: number,
+    content: string
+  ): { success: boolean; error?: string } => {
+    if (!notebookTools) {
+      return { success: false, error: 'NotebookTools not available' };
+    }
+
+    const result = notebookTools.updateCell(cellIndex, content, notebookPath || undefined);
+    console.log(`[Frontend] Updated cell ${cellIndex}:`, result);
+    return result;
+  };
 
   // Check connection on mount
   useEffect(() => {
@@ -392,7 +504,7 @@ export const ChatPanel = React.forwardRef<any, IChatPanelProps>(({ client, noteb
         onToken: (token: string) => {
           setStreamingContent(prev => prev + token);
         },
-        onToolCall: (name: string, args: any) => {
+        onToolCall: async (name: string, args: any) => {
           console.log('Tool call:', name, args);
           setCurrentToolCall(name);
           // Add to tool executions
@@ -402,6 +514,48 @@ export const ChatPanel = React.forwardRef<any, IChatPanelProps>(({ client, noteb
             status: 'running',
             startTime: new Date()
           }]);
+
+          // FRONTEND EXECUTION: Intercept execute_cell and run locally with IOPub streaming
+          // This enables tqdm progress bars and real-time output
+          if (notebookTools && (name === 'execute_cell' || name === 'run_cell')) {
+            const cellIndex = args.cell_index ?? args.cellIndex;
+            if (cellIndex !== undefined) {
+              console.log(`[Frontend Intercept] Executing cell ${cellIndex} locally with IOPub streaming`);
+              const execResult = await executeCellFrontend(cellIndex);
+              // Note: The backend will also try to execute, but frontend wins for streaming output
+              console.log(`[Frontend Intercept] Result:`, execResult);
+            }
+          }
+
+          // FRONTEND CELL MANIPULATION: Intercept insert_cell and add_cell
+          if (notebookTools && (name === 'insert_cell' || name === 'add_cell')) {
+            const content = args.content ?? args.source ?? '';
+            const cellType = args.cell_type ?? args.cellType ?? 'code';
+            const position = args.position ?? 'end';
+            console.log(`[Frontend Intercept] Adding ${cellType} cell locally`);
+            addCellFrontend(content, cellType, position);
+          }
+
+          // FRONTEND: Intercept overwrite_cell / update_cell
+          if (notebookTools && (name === 'overwrite_cell' || name === 'overwrite_cell_source' || name === 'update_cell')) {
+            const cellIndex = args.cell_index ?? args.cellIndex;
+            const content = args.content ?? args.source ?? args.new_source ?? '';
+            if (cellIndex !== undefined) {
+              console.log(`[Frontend Intercept] Updating cell ${cellIndex} locally`);
+              updateCellFrontend(cellIndex, content);
+            }
+          }
+
+          // FRONTEND: Insert and execute
+          if (notebookTools && (name === 'insert_and_execute_cell' || name === 'add_and_run_cell')) {
+            const content = args.content ?? args.source ?? '';
+            const position = args.position ?? 'below';
+            console.log(`[Frontend Intercept] Adding and executing cell locally`);
+            const addResult = addCellFrontend(content, 'code', position);
+            if (addResult.success && addResult.cellIndex !== undefined) {
+              await executeCellFrontend(addResult.cellIndex);
+            }
+          }
         },
         onToolResult: (name: string, success: boolean, result?: any) => {
           console.log('Tool result:', name, success, result);
@@ -702,6 +856,16 @@ export const ChatPanel = React.forwardRef<any, IChatPanelProps>(({ client, noteb
               ))
             )}
           </div>
+        </div>
+      )}
+
+      {/* Real-time execution output panel (for tqdm, progress bars, etc.) */}
+      {isExecutingInBackground && executionOutput && (
+        <div className="tk-execution-output">
+          <div className="tk-execution-header">
+            <span>⚡ Cell {executingCellIndex} Output</span>
+          </div>
+          <pre className="tk-execution-content">{executionOutput}</pre>
         </div>
       )}
 

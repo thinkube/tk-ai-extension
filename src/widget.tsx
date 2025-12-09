@@ -9,6 +9,7 @@ import { ReactWidget } from '@jupyterlab/apputils';
 import { JupyterFrontEnd } from '@jupyterlab/application';
 import React from 'react';
 import { MCPClient } from './api';
+import { NotebookTools } from './notebook-tools';
 import { ChatPanel } from './components/ChatPanel';
 
 /**
@@ -17,10 +18,15 @@ import { ChatPanel } from './components/ChatPanel';
 export class ChatWidget extends ReactWidget {
   private client: MCPClient;
   private labShell: JupyterFrontEnd.IShell | null;
+  private notebookTools: NotebookTools | null;
   private currentNotebookPath: string | null = null;
   private chatPanelRef: React.RefObject<any>;
 
-  constructor(labShell: JupyterFrontEnd.IShell | null = null, initialNotebookPath: string | null = null) {
+  constructor(
+    labShell: JupyterFrontEnd.IShell | null = null,
+    initialNotebookPath: string | null = null,
+    notebookTools: NotebookTools | null = null
+  ) {
     super();
     this.id = 'tk-ai-chat';
     this.title.label = 'tk-ai Chat';
@@ -29,6 +35,7 @@ export class ChatWidget extends ReactWidget {
 
     this.client = new MCPClient();
     this.labShell = labShell;
+    this.notebookTools = notebookTools;
     this.currentNotebookPath = initialNotebookPath;
     this.chatPanelRef = React.createRef();
 
@@ -100,6 +107,7 @@ export class ChatWidget extends ReactWidget {
         client={this.client}
         notebookPath={notebookPath}
         labShell={this.labShell}
+        notebookTools={this.notebookTools}
       />
     );
   }

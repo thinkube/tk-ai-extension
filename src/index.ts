@@ -20,6 +20,7 @@ import { ToolbarButton } from '@jupyterlab/apputils';
 
 import { ChatWidget } from './widget';
 import { MCPClient } from './api';
+import { NotebookTools } from './notebook-tools';
 import { ServerConnection } from '@jupyterlab/services';
 
 /**
@@ -37,12 +38,23 @@ class WidgetRef {
 }
 
 /**
+ * Shared NotebookTools instance holder
+ */
+class NotebookToolsRef {
+  tools: NotebookTools | null = null;
+}
+
+/**
  * Toolbar button extension for notebooks
  */
 class ThinkyButtonExtension
   implements DocumentRegistry.IWidgetExtension<NotebookPanel, DocumentRegistry.IModel>
 {
-  constructor(private app: JupyterFrontEnd, private widgetRef: WidgetRef) {}
+  constructor(
+    private app: JupyterFrontEnd,
+    private widgetRef: WidgetRef,
+    private notebookToolsRef: NotebookToolsRef
+  ) {}
 
   createNew(
     panel: NotebookPanel,
@@ -56,7 +68,11 @@ class ThinkyButtonExtension
 
         // Open or focus Thinky widget
         if (!this.widgetRef.widget || this.widgetRef.widget.isDisposed) {
-          this.widgetRef.widget = new ChatWidget(this.app.shell, notebookPath);
+          this.widgetRef.widget = new ChatWidget(
+            this.app.shell,
+            notebookPath,
+            this.notebookToolsRef.tools
+          );
           this.widgetRef.widget.id = 'tk-ai-chat';
           this.widgetRef.widget.title.label = 'Thinky';
           this.widgetRef.widget.title.closable = true;
@@ -98,11 +114,16 @@ const plugin: JupyterFrontEndPlugin<void> = {
 
     // Create a single widget reference (shared across all notebooks)
     const widgetRef = new WidgetRef();
+    const notebookToolsRef = new NotebookToolsRef();
     const client = new MCPClient();
 
     // Add toolbar button to all notebook panels
     if (notebookTracker) {
-      const buttonExtension = new ThinkyButtonExtension(app, widgetRef);
+      // Initialize NotebookTools for frontend cell manipulation
+      notebookToolsRef.tools = new NotebookTools(notebookTracker);
+      console.log('tk-ai-extension: NotebookTools initialized for frontend cell execution');
+
+      const buttonExtension = new ThinkyButtonExtension(app, widgetRef, notebookToolsRef);
       app.docRegistry.addWidgetExtension('Notebook', buttonExtension);
       console.log('tk-ai-extension: Toolbar button added to notebooks');
 
@@ -231,7 +252,7 @@ const plugin: JupyterFrontEndPlugin<void> = {
       caption: 'Open Thinky AI Assistant',
       execute: () => {
         if (!widgetRef.widget || widgetRef.widget.isDisposed) {
-          widgetRef.widget = new ChatWidget(app.shell);
+          widgetRef.widget = new ChatWidget(app.shell, null, notebookToolsRef.tools);
           widgetRef.widget.id = 'tk-ai-chat';
           widgetRef.widget.title.label = 'Thinky';
           widgetRef.widget.title.closable = true;

@@ -648,6 +648,72 @@
   }
 }
 
+/* Real-time Execution Output Panel */
+.tk-execution-output {
+  background-color: #1e1e1e;
+  border-bottom: 1px solid var(--tk-border);
+  max-height: 200px;
+  overflow-y: auto;
+  position: relative;
+  z-index: 10;
+  flex-shrink: 0;
+}
+
+.tk-execution-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 12px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #00c896;
+  border-bottom: 1px solid var(--tk-border);
+  background-color: #252525;
+  animation: execution-pulse 1s ease-in-out infinite;
+}
+
+@keyframes execution-pulse {
+  0%, 100% {
+    opacity: 0.9;
+  }
+  50% {
+    opacity: 1;
+    background-color: #2a2a2a;
+  }
+}
+
+.tk-execution-content {
+  margin: 0;
+  padding: 12px;
+  font-family: 'Fira Code', 'JetBrains Mono', 'Consolas', monospace;
+  font-size: 12px;
+  line-height: 1.4;
+  color: #d4d4d4;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  background-color: #1e1e1e;
+  overflow-x: auto;
+}
+
+/* Scrollbar for execution output */
+.tk-execution-output::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.tk-execution-output::-webkit-scrollbar-track {
+  background-color: #1e1e1e;
+}
+
+.tk-execution-output::-webkit-scrollbar-thumb {
+  background-color: #444;
+  border-radius: 3px;
+}
+
+.tk-execution-output::-webkit-scrollbar-thumb:hover {
+  background-color: #555;
+}
+
 /* Responsive Design */
 @media (max-width: 600px) {
   .tk-message {
@@ -674,5 +740,9 @@
 
   .tk-tool-panel {
     max-height: 100px;
+  }
+
+  .tk-execution-output {
+    max-height: 120px;
   }
 }
