@@ -72,8 +72,8 @@ cd ui-tests && npm install && npm test
 ### Request Flow
 
 ```
-ChatPanel → MCPClient → /api/tk-ai/mcp/chat → MCPChatHandler
-    → ClaudeSDKClient → MCP Server → tool_executor → BaseTool.execute()
+ChatPanel -> MCPClient -> /api/tk-ai/mcp/chat -> MCPChatHandler
+    -> ClaudeSDKClient -> MCP Server -> tool_executor -> BaseTool.execute()
 ```
 
 ### Key Managers (Backend)
