@@ -1,23 +1,20 @@
 # Copyright 2025 Alejandro Martínez Corriá and the Thinkube contributors
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Frontend-delegated MCP tool base class with backend fallback.
+"""Frontend-delegated MCP tool base class.
 
 This module provides a base class for MCP tools that delegate execution
-to the frontend (JupyterLab UI) via WebSocket when available. When no
-WebSocket is connected (e.g., when called from Claude Code via the MCP
-bridge), tools fall back to backend-only execution via YDoc or
-contents_manager.
-
-Execution priority:
-1. Frontend delegation (WebSocket connected) — real-time UI updates
-2. Backend fallback (no WebSocket) — YDoc/contents_manager
+to the frontend (JupyterLab UI) via WebSocket. This ensures:
+1. UI updates instantly when cells are added/modified/executed
+2. Frontend always reads from live notebook model (not stale files)
+3. tqdm progress bars and real-time output work via IOPub streaming
 """
 
+import json
 import logging
 from typing import Any, Dict, Optional
 from .base import BaseTool
-from ...frontend_delegation import delegate_to_frontend, _active_websocket
+from ...frontend_delegation import delegate_to_frontend, should_delegate_to_frontend
 
 logger = logging.getLogger(__name__)
 
@@ -25,39 +22,17 @@ logger = logging.getLogger(__name__)
 class FrontendDelegatedTool(BaseTool):
     """Base class for tools that delegate execution to the frontend.
 
-    When a WebSocket is connected (Thinky chat open in JupyterLab), tools
-    are delegated to the frontend for real-time UI updates. When no WebSocket
-    is available (Claude Code via MCP bridge), tools fall back to their
-    backend implementations.
-
     Subclasses should implement:
     - name: Tool name (used for frontend routing)
     - description: Tool description for Claude
     - input_schema: JSON schema for tool inputs
-    - _create_backend_tool(): Factory method returning backend BaseTool instance
-    - _map_args_to_backend(kwargs): Map frontend arg names to backend arg names
+    - frontend_tool_name: Name of the tool as recognized by frontend (if different from name)
     """
 
     @property
     def frontend_tool_name(self) -> str:
         """Name of the tool as recognized by frontend. Override if different from self.name."""
         return self.name
-
-    def _create_backend_tool(self) -> Optional[BaseTool]:
-        """Create a backend tool instance for fallback execution.
-
-        Override in subclasses that have backend implementations.
-        Returns None if no backend fallback is available.
-        """
-        return None
-
-    def _map_args_to_backend(self, kwargs: Dict[str, Any]) -> Dict[str, Any]:
-        """Map frontend argument names to backend argument names.
-
-        Override in subclasses where argument names differ between
-        frontend and backend tools. Default: pass through unchanged.
-        """
-        return kwargs
 
     async def execute(
         self,
@@ -69,60 +44,39 @@ class FrontendDelegatedTool(BaseTool):
         serverapp: Optional[Any] = None,
         **kwargs
     ) -> Dict[str, Any]:
-        """Execute via frontend delegation or backend fallback.
+        """Execute by delegating to frontend.
 
-        Priority:
-        1. If WebSocket is connected → delegate to frontend
-        2. Otherwise → use backend tool implementation
+        The frontend handles the actual notebook manipulation using JupyterLab APIs,
+        ensuring UI updates and real-time IOPub streaming.
         """
         tool_name = self.frontend_tool_name
 
-        # Try frontend delegation if WebSocket is connected
-        if _active_websocket is not None:
-            logger.info(f"[Frontend Delegation] Delegating {tool_name} to frontend with args: {kwargs}")
-            try:
-                result = await delegate_to_frontend(tool_name, kwargs)
-                success = result.get('success', False)
-                if success:
-                    logger.info(f"[Frontend Delegation] {tool_name} succeeded")
-                else:
-                    logger.warning(f"[Frontend Delegation] {tool_name} failed: {result.get('error', 'Unknown error')}")
-                return result
-            except Exception as e:
-                logger.warning(f"[Frontend Delegation] {tool_name} failed, trying backend: {e}")
-
-        # Backend fallback
-        backend_tool = self._create_backend_tool()
-        if backend_tool is None:
-            return {
-                "success": False,
-                "error": f"No backend fallback available for {tool_name} and no frontend WebSocket connected"
-            }
-
-        backend_kwargs = self._map_args_to_backend(kwargs)
-        logger.info(f"[Backend Fallback] Executing {tool_name} via backend with args: {backend_kwargs}")
+        # Log the delegation
+        logger.info(f"[Frontend Delegation] Delegating {tool_name} to frontend with args: {kwargs}")
 
         try:
-            result = await backend_tool.execute(
-                contents_manager=contents_manager,
-                kernel_manager=kernel_manager,
-                kernel_spec_manager=kernel_spec_manager,
-                session_manager=session_manager,
-                notebook_manager=notebook_manager,
-                serverapp=serverapp,
-                **backend_kwargs
-            )
+            # Delegate to frontend and wait for result
+            result = await delegate_to_frontend(tool_name, kwargs)
+
+            # Log result
+            success = result.get('success', False)
+            if success:
+                logger.info(f"[Frontend Delegation] {tool_name} succeeded: {result}")
+            else:
+                logger.warning(f"[Frontend Delegation] {tool_name} failed: {result.get('error', 'Unknown error')}")
+
             return result
+
         except Exception as e:
-            logger.error(f"[Backend Fallback] {tool_name} failed: {e}")
+            logger.error(f"[Frontend Delegation] {tool_name} exception: {e}")
             return {
                 "success": False,
-                "error": f"Backend execution failed: {str(e)}"
+                "error": f"Frontend delegation failed: {str(e)}"
             }
 
 
 class ListCellsTool(FrontendDelegatedTool):
-    """List all cells in a notebook (frontend-delegated with backend fallback)."""
+    """List all cells in a notebook (frontend-delegated)."""
 
     @property
     def name(self) -> str:
@@ -145,20 +99,9 @@ class ListCellsTool(FrontendDelegatedTool):
             "required": []
         }
 
-    def _create_backend_tool(self):
-        from .list_cells import ListCellsTool as BackendListCellsTool
-        return BackendListCellsTool()
-
-    def _map_args_to_backend(self, kwargs):
-        # Backend uses 'notebook', frontend uses 'notebook_path'
-        mapped = dict(kwargs)
-        if 'notebook_path' in mapped:
-            mapped['notebook'] = mapped.pop('notebook_path')
-        return mapped
-
 
 class ReadCellTool(FrontendDelegatedTool):
-    """Read a specific cell's content (frontend-delegated with backend fallback)."""
+    """Read a specific cell's content (frontend-delegated)."""
 
     @property
     def name(self) -> str:
@@ -185,19 +128,9 @@ class ReadCellTool(FrontendDelegatedTool):
             "required": ["cell_index"]
         }
 
-    def _create_backend_tool(self):
-        from .read_cell import ReadCellTool as BackendReadCellTool
-        return BackendReadCellTool()
-
-    def _map_args_to_backend(self, kwargs):
-        mapped = dict(kwargs)
-        if 'notebook_path' in mapped:
-            mapped['notebook'] = mapped.pop('notebook_path')
-        return mapped
-
 
 class ExecuteCellTool(FrontendDelegatedTool):
-    """Execute a cell (frontend-delegated with backend fallback)."""
+    """Execute a cell with real-time IOPub streaming (frontend-delegated)."""
 
     @property
     def name(self) -> str:
@@ -227,18 +160,9 @@ class ExecuteCellTool(FrontendDelegatedTool):
             "required": ["cell_index"]
         }
 
-    def _create_backend_tool(self):
-        from .execution.execute_cell import ExecuteCellTool as BackendExecuteCellTool
-        return BackendExecuteCellTool()
-
-    def _map_args_to_backend(self, kwargs):
-        # Backend execute_cell needs notebook_path + cell_index + kernel_id
-        # kernel_id must be resolved from notebook_manager if not provided
-        return dict(kwargs)
-
 
 class InsertCellTool(FrontendDelegatedTool):
-    """Insert a new cell (frontend-delegated with backend fallback)."""
+    """Insert a new cell (frontend-delegated)."""
 
     @property
     def name(self) -> str:
@@ -275,27 +199,9 @@ class InsertCellTool(FrontendDelegatedTool):
             "required": ["content"]
         }
 
-    def _create_backend_tool(self):
-        from .manipulation.insert_cell import InsertCellTool as BackendInsertCellTool
-        return BackendInsertCellTool()
-
-    def _map_args_to_backend(self, kwargs):
-        # Map frontend args to backend: content→source, position→cell_index
-        mapped = dict(kwargs)
-        if 'content' in mapped:
-            mapped['source'] = mapped.pop('content')
-        if 'cell_type' not in mapped:
-            mapped['cell_type'] = 'code'
-        # If position is used instead of cell_index, we need to resolve it
-        # For backend fallback, default to appending at end (cell_index = -1 handled by tool)
-        if 'cell_index' not in mapped:
-            # Will be resolved by the backend tool; use a large number to append at end
-            mapped['cell_index'] = 99999  # Backend tool clamps to len(cells)
-        return mapped
-
 
 class OverwriteCellTool(FrontendDelegatedTool):
-    """Overwrite cell content (frontend-delegated with backend fallback)."""
+    """Overwrite cell content (frontend-delegated)."""
 
     @property
     def name(self) -> str:
@@ -330,20 +236,9 @@ class OverwriteCellTool(FrontendDelegatedTool):
             "required": ["cell_index", "content"]
         }
 
-    def _create_backend_tool(self):
-        from .manipulation.overwrite_cell import OverwriteCellTool as BackendOverwriteCellTool
-        return BackendOverwriteCellTool()
-
-    def _map_args_to_backend(self, kwargs):
-        # Backend uses 'source', frontend uses 'content'
-        mapped = dict(kwargs)
-        if 'content' in mapped:
-            mapped['source'] = mapped.pop('content')
-        return mapped
-
 
 class DeleteCellTool(FrontendDelegatedTool):
-    """Delete a cell (frontend-delegated with backend fallback)."""
+    """Delete a cell (frontend-delegated)."""
 
     @property
     def name(self) -> str:
@@ -370,13 +265,9 @@ class DeleteCellTool(FrontendDelegatedTool):
             "required": ["cell_index"]
         }
 
-    def _create_backend_tool(self):
-        from .manipulation.delete_cell import DeleteCellTool as BackendDeleteCellTool
-        return BackendDeleteCellTool()
-
 
 class MoveCellTool(FrontendDelegatedTool):
-    """Move a cell (frontend-delegated with backend fallback)."""
+    """Move a cell (frontend-delegated)."""
 
     @property
     def name(self) -> str:
@@ -407,13 +298,9 @@ class MoveCellTool(FrontendDelegatedTool):
             "required": ["from_index", "to_index"]
         }
 
-    def _create_backend_tool(self):
-        from .manipulation.move_cell import MoveCellTool as BackendMoveCellTool
-        return BackendMoveCellTool()
-
 
 class InsertAndExecuteCellTool(FrontendDelegatedTool):
-    """Insert and execute a cell (frontend-delegated, no backend fallback yet)."""
+    """Insert and execute a cell (frontend-delegated)."""
 
     @property
     def name(self) -> str:
@@ -445,11 +332,9 @@ class InsertAndExecuteCellTool(FrontendDelegatedTool):
             "required": ["content"]
         }
 
-    # No _create_backend_tool — composite operation, handled by frontend only for now
-
 
 class ExecuteAllCellsTool(FrontendDelegatedTool):
-    """Execute all cells (frontend-delegated, no backend fallback yet)."""
+    """Execute all cells (frontend-delegated)."""
 
     @property
     def name(self) -> str:
@@ -471,8 +356,6 @@ class ExecuteAllCellsTool(FrontendDelegatedTool):
             },
             "required": []
         }
-
-    # No _create_backend_tool — composite operation, handled by frontend only for now
 
 
 # Export all frontend-delegated tools

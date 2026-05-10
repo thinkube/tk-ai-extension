@@ -6,7 +6,7 @@
 import logging
 from typing import Any, Optional, Dict
 from ..base import BaseTool
-from ..utils import get_jupyter_ydoc, get_notebook_path
+from ..utils import get_jupyter_ydoc
 
 logger = logging.getLogger(__name__)
 
@@ -99,24 +99,13 @@ class InsertCellTool(BaseTool):
                     "success": False
                 }
 
-            abs_path = get_notebook_path(serverapp, notebook_path)
-
-            # Get file_id for YDoc lookup
-            file_id_manager = serverapp.web_app.settings.get("file_id_manager")
-            if not file_id_manager:
-                return {
-                    "error": "file_id_manager not available",
-                    "success": False
-                }
-
-            file_id = file_id_manager.get_id(abs_path)
-            ydoc = await get_jupyter_ydoc(serverapp, file_id)
+            ydoc = await get_jupyter_ydoc(serverapp, notebook_path)
 
             if not ydoc:
-                # Fall back to contents_manager when YDoc is unavailable
-                logger.info(f"YDoc unavailable for {notebook_path}, falling back to contents_manager")
-                from ..utils.contents_fallback import insert_cell_via_contents
-                return await insert_cell_via_contents(contents_manager, notebook_path, cell_index, cell_type, source)
+                return {
+                    "error": f"YDoc not available for {notebook_path}. The notebook must be open in JupyterLab with collaborative mode enabled.",
+                    "success": False
+                }
 
             # Validate cell index
             if cell_index < 0 or cell_index > len(ydoc.ycells):

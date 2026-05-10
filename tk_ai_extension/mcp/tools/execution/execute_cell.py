@@ -7,7 +7,7 @@ import logging
 from pathlib import Path
 from typing import Any, Optional, Dict, List
 from ..base import BaseTool
-from ..utils import get_notebook_path
+from ..utils import get_jupyter_ydoc
 
 logger = logging.getLogger(__name__)
 
@@ -117,34 +117,12 @@ class ExecuteCellTool(BaseTool):
                     "execution_state": execution_state
                 }
 
-            # Get absolute path and file_id
-            abs_path = get_notebook_path(serverapp, notebook_path)
-            file_id_manager = serverapp.web_app.settings.get("file_id_manager")
-            file_id = file_id_manager.get_id(abs_path)
-
-            # Get YDoc via jupyter-server-ydoc extension (same as jupyter-server-nbmodel does)
-            ydoc_extensions = serverapp.extension_manager.extension_apps.get("jupyter_server_ydoc", set())
-            if not ydoc_extensions:
-                return {
-                    "error": "jupyter-server-ydoc extension not found",
-                    "success": False
-                }
-
-            ydoc_extension = next(iter(ydoc_extensions))
-            document_id = f"json:notebook:{file_id}"
-
-            serverapp.log.info(f"Getting YDoc for document {document_id}")
-
-            # Get the YNotebook document (this is what jupyter-server-nbmodel does)
-            ydoc = await ydoc_extension.get_document(room_id=document_id, copy=False)
-
+            ydoc = await get_jupyter_ydoc(serverapp, notebook_path)
             if ydoc is None:
                 return {
-                    "error": f"Document {document_id} not found",
+                    "error": f"YDoc not available for {notebook_path}. The notebook must be open in JupyterLab.",
                     "success": False
                 }
-
-            serverapp.log.info(f"Got YDoc for document {document_id}")
 
             # Validate cell index
             if cell_index < 0 or cell_index >= len(ydoc.ycells):

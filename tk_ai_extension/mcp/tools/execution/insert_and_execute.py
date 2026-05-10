@@ -139,20 +139,10 @@ class InsertAndExecuteCellTool(BaseTool):
                     "execution_state": execution_state
                 }
 
-            # Get file_id for YDoc lookup
-            file_id_manager = serverapp.web_app.settings.get("file_id_manager")
-            if not file_id_manager:
-                return {
-                    "error": "file_id_manager not available",
-                    "success": False
-                }
-
-            file_id = file_id_manager.get_id(abs_path)
-            ydoc = await get_jupyter_ydoc(serverapp, file_id)
-
+            ydoc = await get_jupyter_ydoc(serverapp, notebook_path)
             if not ydoc:
                 return {
-                    "error": f"YDoc not available for {notebook_path}. The notebook must be open in JupyterLab with collaborative mode enabled.",
+                    "error": f"YDoc not available for {notebook_path}. The notebook must be open in JupyterLab.",
                     "success": False
                 }
 
