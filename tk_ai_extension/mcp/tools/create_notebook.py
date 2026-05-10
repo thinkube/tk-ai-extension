@@ -107,8 +107,7 @@ class CreateNotebookTool(BaseTool):
                 "format": "json"
             }
 
-            from .utils import cm_call
-            await cm_call(contents_manager.save(model, path))
+            await contents_manager.save(model, path)
 
             return {
                 "success": True,

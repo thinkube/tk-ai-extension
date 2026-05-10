@@ -61,8 +61,7 @@ class ReadCellTool(BaseTool):
 
         try:
             # Get notebook content
-            from .utils import cm_call
-            model = await cm_call(contents_manager.get(notebook, content=True, type='notebook'))
+            model = await contents_manager.get(notebook, content=True, type='notebook')
             cells = model.get('content', {}).get('cells', [])
 
             if cell_index < 0 or cell_index >= len(cells):
