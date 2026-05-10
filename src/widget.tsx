@@ -58,6 +58,7 @@ export class ChatWidget extends ReactWidget {
     }
 
     console.log(`Switching notebook context: ${this.currentNotebookPath} → ${notebookPath}`);
+    const previousPath = this.currentNotebookPath;
     this.currentNotebookPath = notebookPath;
 
     try {
@@ -72,6 +73,8 @@ export class ChatWidget extends ReactWidget {
       this.update();
     } catch (error) {
       console.error('Failed to update notebook context:', error);
+      // Revert so the next attempt isn't blocked by the early-return check
+      this.currentNotebookPath = previousPath;
     }
   }
 

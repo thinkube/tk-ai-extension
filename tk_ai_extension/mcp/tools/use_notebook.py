@@ -93,8 +93,8 @@ Examples:
         try:
             parent_path = str(path.parent) if str(path.parent) != "." else ""
 
-            # Get directory contents using local API
-            model = await contents_manager.get(parent_path, content=True, type='directory')
+            from ..tools.utils import cm_call
+            model = await cm_call(contents_manager.get(parent_path, content=True, type='directory'))
 
             if mode == "connect":
                 file_exists = any(item['name'] == path.name for item in model.get('content', []))
@@ -168,7 +168,8 @@ Examples:
         # Create notebook if needed
         if mode == "create":
             try:
-                await contents_manager.new(model={'type': 'notebook'}, path=notebook_path)
+                from ..tools.utils import cm_call
+                await cm_call(contents_manager.new(model={'type': 'notebook'}, path=notebook_path))
                 logger.info(f"Created new notebook at '{notebook_path}'")
             except Exception as e:
                 return f"Failed to create notebook at '{notebook_path}': {e}"
@@ -185,7 +186,8 @@ Examples:
             existing_kernel_id = None
             if session_manager:
                 try:
-                    sessions = await session_manager.list_sessions()
+                    from ..tools.utils import cm_call
+                    sessions = await cm_call(session_manager.list_sessions())
                     for session in sessions:
                         if session.get('path') == notebook_path or session.get('name') == notebook_path:
                             existing_kernel_id = session.get('kernel', {}).get('id')

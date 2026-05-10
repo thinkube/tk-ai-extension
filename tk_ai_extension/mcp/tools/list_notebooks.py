@@ -38,7 +38,8 @@ class ListNotebooksTool(BaseTool):
             notebooks = []
 
         try:
-            model = await contents_manager.get(path, content=True, type='directory')
+            from .utils import cm_call
+            model = await cm_call(contents_manager.get(path, content=True, type='directory'))
             for item in model.get('content', []):
                 full_path = f"{path}/{item['name']}" if path else item['name']
                 if item['type'] == "directory":

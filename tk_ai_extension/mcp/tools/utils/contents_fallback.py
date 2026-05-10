@@ -19,13 +19,14 @@ logger = logging.getLogger(__name__)
 
 async def _get_notebook(contents_manager: Any, notebook_path: str) -> Dict[str, Any]:
     """Read notebook via contents_manager."""
-    model = await contents_manager.get(notebook_path, content=True, type='notebook')
-    return model
+    from . import cm_call
+    return await cm_call(contents_manager.get(notebook_path, content=True, type='notebook'))
 
 
 async def _save_notebook(contents_manager: Any, notebook_path: str, model: Dict[str, Any]) -> None:
     """Save notebook via contents_manager."""
-    await contents_manager.save(model, notebook_path)
+    from . import cm_call
+    await cm_call(contents_manager.save(model, notebook_path))
 
 
 async def list_cells_via_contents(
