@@ -32,13 +32,17 @@ export interface IChatPanelProps {
   notebookPath: string | null;
   labShell: JupyterFrontEnd.IShell | null;
   notebookTools: NotebookTools | null;
+  // Data restored by widget when switching tabs (single source of truth)
+  restoredMessages?: IChatMessage[] | null;
+  restoredNotebookName?: string | null;
+  restoreGeneration?: number; // incremented on each restore to trigger effect
 }
 
 /**
  * Chat Panel Component
  * Provides a chat interface for interacting with Claude AI
  */
-export const ChatPanel = React.forwardRef<any, IChatPanelProps>(({ client, notebookPath, labShell, notebookTools }, ref) => {
+export const ChatPanel: React.FC<IChatPanelProps> = ({ client, notebookPath, labShell, notebookTools, restoredMessages, restoredNotebookName, restoreGeneration }) => {
   /**
    * Get the currently active notebook path at the time of sending a message
    */
@@ -129,24 +133,10 @@ export const ChatPanel = React.forwardRef<any, IChatPanelProps>(({ client, noteb
     cellType?: string;
   }>>([]);
 
-  // Expose methods via ref
-  React.useImperativeHandle(ref, () => ({
-    restoreConversation: (notebookName: string, restoredMessages: IChatMessage[]) => {
-      console.log(`Restoring conversation for ${notebookName}: ${restoredMessages.length} messages`);
-      setIsRestoring(true);
-      setConnectedNotebook(notebookName);
-      setMessages(restoredMessages);
-      setTimeout(() => setIsRestoring(false), 500); // Brief restore indicator
-    },
-    setBackgroundExecution: (isExecuting: boolean, cellIndex?: number) => {
-      console.log(`Background execution ${isExecuting ? 'started' : 'ended'}${cellIndex !== undefined ? ` at cell ${cellIndex}` : ''}`);
-      setIsExecutingInBackground(isExecuting);
-      setExecutingCellIndex(isExecuting && cellIndex !== undefined ? cellIndex : null);
-    },
-    startExecutionPolling: (executionId: string, cellIndex: number) => {
-      startExecutionPolling(executionId, cellIndex);
-    }
-  }));
+  // Track whether initial load has been done (to avoid double-loading)
+  const hasInitialLoadRef = useRef(false);
+  // Track the last restoreGeneration we consumed
+  const lastRestoreGenRef = useRef(0);
 
   /**
    * Execute a cell using frontend NotebookTools with IOPub streaming
@@ -262,9 +252,35 @@ export const ChatPanel = React.forwardRef<any, IChatPanelProps>(({ client, noteb
     checkConnection();
   }, []);
 
-  // Load notebook history when notebook path is available
+  // Handle restored data from widget (tab switch).
+  // This is the single source of truth for tab-switch session loading.
   useEffect(() => {
-    if (notebookPath && isConnected && isModelConnected) {
+    if (
+      restoreGeneration !== undefined &&
+      restoreGeneration > 0 &&
+      restoreGeneration !== lastRestoreGenRef.current
+    ) {
+      lastRestoreGenRef.current = restoreGeneration;
+      hasInitialLoadRef.current = true; // mark as loaded so initial-load effect skips
+
+      console.log(`Restoring conversation for ${restoredNotebookName}: ${restoredMessages?.length ?? 0} messages`);
+      setIsRestoring(true);
+      setConnectedNotebook(restoredNotebookName ?? null);
+      setMessages(restoredMessages ?? []);
+
+      if (!restoredMessages || restoredMessages.length === 0) {
+        showWelcomeMessage(restoredNotebookName ?? 'notebook');
+      }
+
+      setTimeout(() => setIsRestoring(false), 500);
+    }
+  }, [restoreGeneration]);
+
+  // Initial load: only runs once on first mount when we have a notebook path
+  // but no restored data was provided by the widget (e.g., first open via toolbar button)
+  useEffect(() => {
+    if (notebookPath && isConnected && isModelConnected && !hasInitialLoadRef.current) {
+      hasInitialLoadRef.current = true;
       loadNotebookHistory();
     }
   }, [notebookPath, isConnected, isModelConnected]);
@@ -1183,4 +1199,4 @@ export const ChatPanel = React.forwardRef<any, IChatPanelProps>(({ client, noteb
       </div>
     </div>
   );
-});
+};

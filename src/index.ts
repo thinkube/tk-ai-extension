@@ -128,7 +128,7 @@ const plugin: JupyterFrontEndPlugin<void> = {
 
       // Auto-detect notebook changes and update widget context
       notebookTracker.currentChanged.connect((tracker, notebookPanel) => {
-        if (notebookPanel && widgetRef.widget && !widgetRef.widget.isDisposed && widgetRef.widget.isAttached) {
+        if (notebookPanel && widgetRef.widget && !widgetRef.widget.isDisposed) {
           const notebookPath = notebookPanel.context.path;
           console.log(`Notebook changed to: ${notebookPath}`);
           widgetRef.widget.updateNotebookContext(notebookPath);

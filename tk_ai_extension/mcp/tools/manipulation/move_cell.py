@@ -108,10 +108,10 @@ class MoveCellTool(BaseTool):
             ydoc = await get_jupyter_ydoc(serverapp, file_id)
 
             if not ydoc:
-                return {
-                    "error": f"YDoc not available for {notebook_path}. The notebook must be open in JupyterLab with collaborative mode enabled.",
-                    "success": False
-                }
+                # Fall back to contents_manager when YDoc is unavailable
+                logger.info(f"YDoc unavailable for {notebook_path}, falling back to contents_manager")
+                from ..utils.contents_fallback import move_cell_via_contents
+                return await move_cell_via_contents(contents_manager, notebook_path, from_index, to_index)
 
             # Use YDoc for collaborative editing
             if from_index < 0 or from_index >= len(ydoc.ycells):

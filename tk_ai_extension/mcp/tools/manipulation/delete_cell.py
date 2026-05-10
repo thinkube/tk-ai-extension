@@ -94,10 +94,10 @@ class DeleteCellTool(BaseTool):
             ydoc = await get_jupyter_ydoc(serverapp, file_id)
 
             if not ydoc:
-                return {
-                    "error": f"YDoc not available for {notebook_path}. The notebook must be open in JupyterLab with collaborative mode enabled.",
-                    "success": False
-                }
+                # Fall back to contents_manager when YDoc is unavailable
+                logger.info(f"YDoc unavailable for {notebook_path}, falling back to contents_manager")
+                from ..utils.contents_fallback import delete_cell_via_contents
+                return await delete_cell_via_contents(contents_manager, notebook_path, cell_index)
 
             # Use YDoc for collaborative editing
             if cell_index < 0 or cell_index >= len(ydoc.ycells):

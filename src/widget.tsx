@@ -8,7 +8,7 @@
 import { ReactWidget } from '@jupyterlab/apputils';
 import { JupyterFrontEnd } from '@jupyterlab/application';
 import React from 'react';
-import { MCPClient } from './api';
+import { MCPClient, IChatMessage } from './api';
 import { NotebookTools } from './notebook-tools';
 import { ChatPanel } from './components/ChatPanel';
 
@@ -20,7 +20,11 @@ export class ChatWidget extends ReactWidget {
   private labShell: JupyterFrontEnd.IShell | null;
   private notebookTools: NotebookTools | null;
   private currentNotebookPath: string | null = null;
-  private chatPanelRef: React.RefObject<any>;
+
+  // Data loaded by updateNotebookContext, passed as props to ChatPanel
+  private restoredMessages: IChatMessage[] | null = null;
+  private restoredNotebookName: string | null = null;
+  private restoreGeneration = 0; // incremented on each restore to trigger React effect
 
   constructor(
     labShell: JupyterFrontEnd.IShell | null = null,
@@ -37,7 +41,6 @@ export class ChatWidget extends ReactWidget {
     this.labShell = labShell;
     this.notebookTools = notebookTools;
     this.currentNotebookPath = initialNotebookPath;
-    this.chatPanelRef = React.createRef();
 
     // Connect to notebook if initial path provided
     if (initialNotebookPath) {
@@ -62,16 +65,11 @@ export class ChatWidget extends ReactWidget {
       const result = await this.client.connectNotebook(notebookPath);
       console.log(`Connected to ${result.notebook_name}, loaded ${result.messages.length} messages`);
 
-      // Update the ChatPanel with new context and messages
+      // Store loaded data and trigger re-render via props
+      this.restoredMessages = result.messages;
+      this.restoredNotebookName = result.notebook_name;
+      this.restoreGeneration++;
       this.update();
-
-      // Trigger conversation restore in ChatPanel
-      if (this.chatPanelRef.current && this.chatPanelRef.current.restoreConversation) {
-        this.chatPanelRef.current.restoreConversation(
-          result.notebook_name,
-          result.messages
-        );
-      }
     } catch (error) {
       console.error('Failed to update notebook context:', error);
     }
@@ -103,11 +101,13 @@ export class ChatWidget extends ReactWidget {
     const notebookPath = this.currentNotebookPath || this.getCurrentNotebookPath();
     return (
       <ChatPanel
-        ref={this.chatPanelRef}
         client={this.client}
         notebookPath={notebookPath}
         labShell={this.labShell}
         notebookTools={this.notebookTools}
+        restoredMessages={this.restoredMessages}
+        restoredNotebookName={this.restoredNotebookName}
+        restoreGeneration={this.restoreGeneration}
       />
     );
   }

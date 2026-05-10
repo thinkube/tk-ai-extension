@@ -113,10 +113,10 @@ class InsertCellTool(BaseTool):
             ydoc = await get_jupyter_ydoc(serverapp, file_id)
 
             if not ydoc:
-                return {
-                    "error": f"YDoc not available for {notebook_path}. The notebook must be open in JupyterLab with collaborative mode enabled.",
-                    "success": False
-                }
+                # Fall back to contents_manager when YDoc is unavailable
+                logger.info(f"YDoc unavailable for {notebook_path}, falling back to contents_manager")
+                from ..utils.contents_fallback import insert_cell_via_contents
+                return await insert_cell_via_contents(contents_manager, notebook_path, cell_index, cell_type, source)
 
             # Validate cell index
             if cell_index < 0 or cell_index > len(ydoc.ycells):
