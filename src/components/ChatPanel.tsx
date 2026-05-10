@@ -105,13 +105,14 @@ export const ChatPanel: React.FC<IChatPanelProps> = ({ client, notebookPath, lab
       return null;
     }
   };
-  const [messages, setMessages] = useState<IChatMessage[]>([]);
+  // Initialize state from props if available (survives ReactWidget remounts)
+  const [messages, setMessages] = useState<IChatMessage[]>(restoredMessages ?? []);
   const [inputValue, setInputValue] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
   const [isModelConnected, setIsModelConnected] = useState(false);
   const [isWebSocketConnected, setIsWebSocketConnected] = useState(false);
-  const [connectedNotebook, setConnectedNotebook] = useState<string | null>(null);
+  const [connectedNotebook, setConnectedNotebook] = useState<string | null>(restoredNotebookName ?? null);
   const [isRestoring, setIsRestoring] = useState(false);
   const [isExecutingInBackground, setIsExecutingInBackground] = useState(false);
   const [executingCellIndex, setExecutingCellIndex] = useState<number | null>(null);
@@ -134,8 +135,11 @@ export const ChatPanel: React.FC<IChatPanelProps> = ({ client, notebookPath, lab
   }>>([]);
 
   // Track whether initial load has been done (to avoid double-loading)
-  const hasInitialLoadRef = useRef(false);
-  // Track the last restoreGeneration we consumed
+  // Initialize to true if widget already has restored data (prevents the
+  // initial-load effect from racing with the restore effect on remount)
+  const hasInitialLoadRef = useRef((restoreGeneration ?? 0) > 0);
+  // Track the last restoreGeneration we consumed (start at 0 so the
+  // restore effect fires on first mount when restoreGeneration > 0)
   const lastRestoreGenRef = useRef(0);
 
   /**
