@@ -107,12 +107,11 @@ class InsertCellTool(BaseTool):
                     "success": False
                 }
 
-            # Validate cell index
-            if cell_index < 0 or cell_index > len(ydoc.ycells):
-                return {
-                    "error": f"Cell index {cell_index} out of range. Notebook has {len(ydoc.ycells)} cells",
-                    "success": False
-                }
+            # Clamp cell index to valid range (allows appending at end)
+            if cell_index < 0:
+                cell_index = 0
+            if cell_index > len(ydoc.ycells):
+                cell_index = len(ydoc.ycells)
 
             # Create new cell dict with source content
             # create_ycell() will convert source to Text object automatically

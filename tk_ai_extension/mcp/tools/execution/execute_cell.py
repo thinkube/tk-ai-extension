@@ -84,12 +84,20 @@ class ExecuteCellTool(BaseTool):
         if not serverapp:
             serverapp = getattr(contents_manager, 'parent', None)
 
+        # Auto-resolve kernel_id from sessions if not provided
+        if not kernel_id and notebook_path and session_manager:
+            from ..utils import resolve_kernel_id
+            kernel_id = await resolve_kernel_id(session_manager, notebook_path)
+
         if serverapp:
             serverapp.log.info(f"ExecuteCellTool.execute called: notebook_path={notebook_path}, cell_index={cell_index}, kernel_id={kernel_id}")
 
-        if not notebook_path or cell_index is None or not kernel_id:
+        if not notebook_path or cell_index is None:
+            return {"error": "notebook_path and cell_index are required", "success": False}
+
+        if not kernel_id:
             return {
-                "error": "notebook_path, cell_index, and kernel_id are required",
+                "error": f"No kernel found for {notebook_path}. The notebook must be open in JupyterLab.",
                 "success": False
             }
 
@@ -268,11 +276,11 @@ class ExecuteCellTool(BaseTool):
                 if remaining_ms <= 0:
                     client.stop_channels()
                     serverapp.log.warning(f"Code execution timeout after {timeout}s, collected {len(outputs)} outputs")
-                    return [{
+                    return (None, [{
                         "output_type": "stream",
                         "name": "stderr",
                         "text": f"[TIMEOUT: Code execution exceeded {timeout} seconds]"
-                    }]
+                    }])
 
                 # Use shorter poll timeout during grace period
                 poll_timeout = min(remaining_ms, grace_period_ms / 2) if execution_done else remaining_ms

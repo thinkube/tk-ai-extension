@@ -87,35 +87,31 @@ class InsertAndExecuteCellTool(BaseTool):
         """
         notebook_path = kwargs.get("notebook_path")
         cell_index = kwargs.get("cell_index")
-        code = kwargs.get("code")
+        code = kwargs.get("code") or kwargs.get("source")
         kernel_id = kwargs.get("kernel_id")
         timeout_seconds = kwargs.get("timeout_seconds", 300)
 
-        if not notebook_path or cell_index is None or not code or not kernel_id:
+        # Auto-resolve kernel_id from sessions if not provided
+        if not kernel_id and notebook_path and session_manager:
+            from ..utils import resolve_kernel_id
+            kernel_id = await resolve_kernel_id(session_manager, notebook_path)
+
+        if not notebook_path or cell_index is None or not code:
+            return {"error": "notebook_path, cell_index, and code are required", "success": False}
+
+        if not kernel_id:
             return {
-                "error": "notebook_path, cell_index, code, and kernel_id are required",
+                "error": f"No kernel found for {notebook_path}. The notebook must be open in JupyterLab.",
                 "success": False
             }
 
-        # Proactive check: suggest using use_notebook if no notebooks connected
-        if notebook_manager and notebook_manager.is_empty():
-            return {
-                "error": "No notebook connected. Use the use_notebook tool first to connect to a notebook.",
-                "success": False,
-                "suggestion": "Call use_notebook with notebook_name and notebook_path parameters"
-            }
-
         try:
-            # Get absolute path
             if not serverapp:
-                return {
-                    "error": "ServerApp not available - cannot access YDoc",
-                    "success": False
-                }
+                return {"error": "ServerApp not available", "success": False}
 
             abs_path = get_notebook_path(serverapp, notebook_path)
 
-            # Check if kernel exists and get execution state
+            # Check kernel state
             kernels = list(kernel_manager.list_kernels())
             kernel_info = None
             for k in kernels:
@@ -124,19 +120,13 @@ class InsertAndExecuteCellTool(BaseTool):
                     break
 
             if not kernel_info:
-                return {
-                    "error": f"Kernel '{kernel_id}' not found",
-                    "success": False
-                }
+                return {"error": f"Kernel '{kernel_id}' not found", "success": False}
 
-            # Check kernel execution state (natural lock mechanism)
             execution_state = kernel_info.get('execution_state', 'unknown')
             if execution_state == 'busy':
                 return {
-                    "error": "Kernel is currently busy executing another cell. Please wait for the current execution to complete.",
-                    "success": False,
-                    "kernel_id": kernel_id,
-                    "execution_state": execution_state
+                    "error": "Kernel is busy. Wait for the current execution to complete.",
+                    "success": False
                 }
 
             ydoc = await get_jupyter_ydoc(serverapp, notebook_path)
@@ -146,15 +136,11 @@ class InsertAndExecuteCellTool(BaseTool):
                     "success": False
                 }
 
-            # Get document_id for RTC integration
-            document_id = f"json:notebook:{file_id}"
-
-            # Validate cell index
-            if cell_index < 0 or cell_index > len(ydoc.ycells):
-                return {
-                    "error": f"Cell index {cell_index} out of range. Notebook has {len(ydoc.ycells)} cells",
-                    "success": False
-                }
+            # Clamp cell index
+            if cell_index < 0:
+                cell_index = 0
+            if cell_index > len(ydoc.ycells):
+                cell_index = len(ydoc.ycells)
 
             # Create new cell dict with source content
             # create_ycell() will convert source to Text object automatically
@@ -171,15 +157,13 @@ class InsertAndExecuteCellTool(BaseTool):
             # Get the newly inserted cell to retrieve its ID
             inserted_cell_id = ycell.get("id")
 
-            # Execute the cell with RTC metadata
+            # Execute the cell
             outputs = await execute_code_with_timeout(
                 kernel_manager,
                 kernel_id,
                 code,
                 timeout_seconds,
-                serverapp=serverapp,
-                document_id=document_id,
-                cell_id=inserted_cell_id
+                serverapp=serverapp
             )
 
             return {

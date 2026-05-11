@@ -319,10 +319,11 @@ export const ChatPanel: React.FC<IChatPanelProps> = ({ client, notebookPath, lab
           role: 'assistant',
           content:
             '⚠️ MCP server is running, but Thinky AI is not accessible.\n\n' +
-            'Please check:\n' +
-            '1. ANTHROPIC_API_KEY environment variable is set\n' +
-            '2. API key is valid and has quota remaining\n' +
-            '3. Network connectivity to Anthropic API',
+            'To use Thinky in this notebook, set ANTHROPIC_API_KEY or CLAUDE_CODE_OAUTH_TOKEN ' +
+            'in thinkube-control Secrets page, then click "Export to Notebooks".\n\n' +
+            '**You can still manage this notebook from Claude Code in code-server.** ' +
+            'Claude Code connects to the notebook tools via thinkube-control MCP — ' +
+            'it can list cells, read outputs, insert/edit/delete cells, and execute code.',
           timestamp: new Date()
         }
       ]);

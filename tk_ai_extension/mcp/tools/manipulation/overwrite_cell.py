@@ -17,7 +17,7 @@ class OverwriteCellTool(BaseTool):
 
     @property
     def name(self) -> str:
-        return "overwrite_cell_source"
+        return "overwrite_cell"
 
     @property
     def description(self) -> str:

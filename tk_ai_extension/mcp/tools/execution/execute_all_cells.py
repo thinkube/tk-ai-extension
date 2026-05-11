@@ -88,12 +88,20 @@ class ExecuteAllCellsTool(BaseTool):
         if not serverapp:
             serverapp = getattr(contents_manager, 'parent', None)
 
+        # Auto-resolve kernel_id from sessions if not provided
+        if not kernel_id and notebook_path and session_manager:
+            from ..utils import resolve_kernel_id
+            kernel_id = await resolve_kernel_id(session_manager, notebook_path)
+
         if serverapp:
             serverapp.log.info(f"ExecuteAllCellsTool.execute called: notebook_path={notebook_path}, kernel_id={kernel_id}, restart={restart_kernel}")
 
-        if not notebook_path or not kernel_id:
+        if not notebook_path:
+            return {"error": "notebook_path is required", "success": False}
+
+        if not kernel_id:
             return {
-                "error": "notebook_path and kernel_id are required",
+                "error": f"No kernel found for {notebook_path}. The notebook must be open in JupyterLab.",
                 "success": False
             }
 
