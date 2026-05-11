@@ -13,6 +13,7 @@ import {
 import { ISettingRegistry } from '@jupyterlab/settingregistry';
 import { ICommandPalette } from '@jupyterlab/apputils';
 import { ILauncher } from '@jupyterlab/launcher';
+import { IMainMenu } from '@jupyterlab/mainmenu';
 import { INotebookTracker, NotebookPanel } from '@jupyterlab/notebook';
 import { DocumentRegistry } from '@jupyterlab/docregistry';
 import { IDisposable } from '@lumino/disposable';
@@ -26,7 +27,8 @@ import { NotebookTools } from './notebook-tools';
  * The command IDs
  */
 const CommandIDs = {
-  openChat: 'tk-ai:open-chat'
+  openChat: 'tk-ai:open-chat',
+  restartServer: 'tk-ai:restart-server'
 };
 
 /**
@@ -101,13 +103,14 @@ const plugin: JupyterFrontEndPlugin<void> = {
   id: 'tk-ai-extension:plugin',
   description: 'AI assistant extension for tk-ai lab (Thinkube JupyterHub)',
   autoStart: true,
-  optional: [ISettingRegistry, ICommandPalette, ILauncher, INotebookTracker],
+  optional: [ISettingRegistry, ICommandPalette, ILauncher, INotebookTracker, IMainMenu],
   activate: (
     app: JupyterFrontEnd,
     settingRegistry: ISettingRegistry | null,
     palette: ICommandPalette | null,
     launcher: ILauncher | null,
-    notebookTracker: INotebookTracker | null
+    notebookTracker: INotebookTracker | null,
+    mainMenu: IMainMenu | null
   ) => {
     console.log('JupyterLab extension tk-ai-extension is activated!');
 
@@ -186,8 +189,29 @@ const plugin: JupyterFrontEndPlugin<void> = {
       }
     });
 
-    // Launcher intentionally removed - Thinky should be opened via notebook toolbar button
-    // Users should click the "🤖 Thinky" button in the notebook toolbar instead
+    // "Restart Server" - navigates current tab to Hub home for server reconfiguration
+    app.commands.addCommand(CommandIDs.restartServer, {
+      label: 'Restart Server',
+      caption:
+        'Stop server and choose new configuration (node, CPU, memory, GPU)',
+      execute: () => {
+        window.location.href = '/hub/home';
+      }
+    });
+
+    if (mainMenu) {
+      mainMenu.fileMenu.addGroup(
+        [{ command: CommandIDs.restartServer }],
+        99
+      );
+    }
+
+    if (palette) {
+      palette.addItem({
+        command: CommandIDs.restartServer,
+        category: 'Hub'
+      });
+    }
 
     // Load settings if available
     if (settingRegistry) {
