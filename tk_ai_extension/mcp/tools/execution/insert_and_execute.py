@@ -166,10 +166,11 @@ class InsertAndExecuteCellTool(BaseTool):
                 serverapp=serverapp
             )
 
+            from ..utils.s3_helper import process_outputs
             return {
                 "success": True,
                 "cell_index": cell_index,
-                "outputs": outputs,
+                "outputs": process_outputs(outputs),
                 "message": f"Cell inserted at index {cell_index} and executed"
             }
 

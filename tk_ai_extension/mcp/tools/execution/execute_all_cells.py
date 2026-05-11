@@ -252,10 +252,11 @@ class ExecuteAllCellsTool(BaseTool):
                     # Check for errors
                     has_error = any(o.get("output_type") == "error" for o in outputs)
 
+                    from ..utils.s3_helper import process_outputs
                     _async_executions_all[execution_id]["results"].append({
                         "cell_index": cell_idx,
                         "success": not has_error,
-                        "outputs": outputs
+                        "outputs": process_outputs(outputs)
                     })
 
                     _async_executions_all[execution_id]["completed_cells"] += 1

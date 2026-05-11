@@ -185,10 +185,14 @@ class ExecuteCellTool(BaseTool):
 
             serverapp.log.info(f"Updated cell {cell_index} outputs in YDoc ({len(outputs)} outputs) - RTC will sync to UI")
 
+            # Process outputs for MCP response (upload large items to S3)
+            from ..utils.s3_helper import process_outputs
+            mcp_outputs = process_outputs(outputs)
+
             return {
                 "success": True,
                 "cell_index": cell_index,
-                "outputs": outputs
+                "outputs": mcp_outputs
             }
 
         except Exception as e:
