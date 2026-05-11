@@ -31,11 +31,16 @@ class ListNotebooksTool(BaseTool):
         self,
         contents_manager: Any,
         path: str = "",
-        notebooks: Optional[List[str]] = None
+        notebooks: Optional[List[str]] = None,
+        depth: int = 0,
+        max_depth: int = 3
     ) -> List[str]:
-        """Recursively list all notebooks."""
+        """Recursively list all notebooks (max 3 levels deep)."""
         if notebooks is None:
             notebooks = []
+
+        if depth > max_depth:
+            return notebooks
 
         try:
             model = await contents_manager.get(path, content=True, type='directory')
@@ -43,12 +48,11 @@ class ListNotebooksTool(BaseTool):
                 full_path = f"{path}/{item['name']}" if path else item['name']
                 if item['type'] == "directory":
                     await self._list_notebooks_recursive(
-                        contents_manager, full_path, notebooks
+                        contents_manager, full_path, notebooks, depth + 1, max_depth
                     )
                 elif item['type'] == "notebook" or item['name'].endswith('.ipynb'):
                     notebooks.append(full_path)
         except Exception:
-            # Skip inaccessible directories
             pass
 
         return notebooks
