@@ -94,8 +94,18 @@ def _get_s3_client():
         return None, None
 
 
-def _upload_to_s3(content: bytes, key: str, content_type: str) -> Optional[str]:
-    """Upload content to S3 and return the URL."""
+def _upload_to_s3(content: bytes, key: str, content_type: str, ttl: int = 3600) -> Optional[str]:
+    """Upload content to S3 and return a pre-signed URL.
+
+    Args:
+        content: Raw bytes to upload
+        key: S3 object key
+        content_type: MIME type
+        ttl: URL expiration in seconds (default 1 hour)
+
+    Returns:
+        Pre-signed URL that works without authentication for ttl seconds
+    """
     client, endpoint = _get_s3_client()
     if client is None:
         return None
@@ -108,8 +118,14 @@ def _upload_to_s3(content: bytes, key: str, content_type: str) -> Optional[str]:
             Body=content,
             ContentType=content_type
         )
-        url = f"{endpoint}/{bucket}/{key}"
-        logger.info(f"Uploaded {len(content)} bytes to {url}")
+
+        url = client.generate_presigned_url(
+            'get_object',
+            Params={'Bucket': bucket, 'Key': key},
+            ExpiresIn=ttl
+        )
+
+        logger.info(f"Uploaded {len(content)} bytes, pre-signed URL expires in {ttl}s")
         return url
     except Exception as e:
         logger.error(f"S3 upload failed: {e}")
