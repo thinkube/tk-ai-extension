@@ -1,10 +1,10 @@
 # Copyright 2025 Alejandro Martínez Corriá and the Thinkube contributors
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Upload large cell outputs to SeaweedFS S3.
+"""Save large cell outputs to shared JuiceFS filesystem.
 
-Reads credentials from the service discovery env file at
-/home/thinkube/.config/thinkube/service-env-jh.sh (or environment variables).
+Outputs are written to a .outputs/ directory within the notebooks volume,
+which is accessible from both Jupyter pods and code-server.
 """
 
 import base64
@@ -13,140 +13,60 @@ import os
 import uuid
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 logger = logging.getLogger(__name__)
 
 # Output size thresholds
-IMAGE_UPLOAD_THRESHOLD = 0  # Always upload images (they're always large)
-TEXT_UPLOAD_THRESHOLD = 10000  # Upload text outputs > 10KB
+IMAGE_UPLOAD_THRESHOLD = 0  # Always save images (they're always large)
+TEXT_UPLOAD_THRESHOLD = 10000  # Save text outputs > 10KB
 
-_s3_client = None
-_s3_endpoint = None
-
-
-def _load_env_from_file(path: str) -> Dict[str, str]:
-    """Parse a bash export file into a dict."""
-    env = {}
-    try:
-        with open(path, 'r') as f:
-            for line in f:
-                line = line.strip()
-                if not line or line.startswith('#'):
-                    continue
-                if line.startswith('export '):
-                    line = line[7:]
-                if '=' in line:
-                    key, value = line.split('=', 1)
-                    value = value.strip('"').strip("'")
-                    env[key] = value
-    except Exception as e:
-        logger.warning(f"Failed to read env file {path}: {e}")
-    return env
+# Base path for outputs on the shared JuiceFS notebooks volume
+_OUTPUTS_DIR = Path.home() / 'thinkube' / 'notebooks' / '.outputs'
 
 
-def _get_s3_client():
-    """Get or create a boto3 S3 client using SeaweedFS credentials."""
-    global _s3_client, _s3_endpoint
-
-    if _s3_client is not None:
-        return _s3_client, _s3_endpoint
-
-    try:
-        import boto3
-        from botocore.config import Config
-
-        # Try environment first
-        endpoint = os.environ.get('SEAWEEDFS_S3_ENDPOINT')
-        access_key = os.environ.get('SEAWEEDFS_ACCESS_KEY')
-        secret_key = os.environ.get('SEAWEEDFS_SECRET_KEY')
-
-        # Fall back to service discovery env file
-        if not endpoint or not access_key or not secret_key:
-            env_file = Path.home() / '.config' / 'thinkube' / 'service-env-jh.sh'
-            if env_file.exists():
-                env = _load_env_from_file(str(env_file))
-                endpoint = endpoint or env.get('SEAWEEDFS_S3_ENDPOINT')
-                access_key = access_key or env.get('SEAWEEDFS_ACCESS_KEY')
-                secret_key = secret_key or env.get('SEAWEEDFS_SECRET_KEY')
-
-        if not endpoint or not access_key or not secret_key:
-            logger.error("SeaweedFS S3 credentials not found")
-            return None, None
-
-        _s3_client = boto3.client(
-            's3',
-            endpoint_url=endpoint,
-            aws_access_key_id=access_key,
-            aws_secret_access_key=secret_key,
-            config=Config(
-                signature_version='s3v4',
-                request_checksum_calculation='when_required',
-            ),
-            verify=False
-        )
-        _s3_endpoint = endpoint
-        logger.info(f"S3 client initialized: {endpoint}")
-        return _s3_client, _s3_endpoint
-
-    except ImportError:
-        logger.error("boto3 not installed")
-        return None, None
-    except Exception as e:
-        logger.error(f"Failed to create S3 client: {e}")
-        return None, None
+def _ensure_output_dir(subdir: str) -> Path:
+    """Ensure the output directory exists and return the full path."""
+    output_dir = _OUTPUTS_DIR / subdir
+    output_dir.mkdir(parents=True, exist_ok=True)
+    return output_dir
 
 
-def _upload_to_s3(content: bytes, key: str, content_type: str, ttl: int = 3600) -> Optional[str]:
-    """Upload content to S3 and return a pre-signed URL.
-
-    Args:
-        content: Raw bytes to upload
-        key: S3 object key
-        content_type: MIME type
-        ttl: URL expiration in seconds (default 1 hour)
-
-    Returns:
-        Pre-signed URL that works without authentication for ttl seconds
-    """
-    client, endpoint = _get_s3_client()
-    if client is None:
-        return None
-
-    bucket = 'notebook-outputs'
-    try:
-        client.put_object(
-            Bucket=bucket,
-            Key=key,
-            Body=content,
-            ContentType=content_type
-        )
-
-        url = client.generate_presigned_url(
-            'get_object',
-            Params={'Bucket': bucket, 'Key': key},
-            ExpiresIn=ttl
-        )
-
-        logger.info(f"Uploaded {len(content)} bytes, pre-signed URL expires in {ttl}s")
-        return url
-    except Exception as e:
-        logger.error(f"S3 upload failed: {e}")
-        return None
-
-
-def _generate_key(ext: str) -> str:
-    """Generate a unique S3 key."""
+def _generate_filename(ext: str) -> tuple[str, str]:
+    """Generate a unique filename and its date subdirectory."""
     date = datetime.utcnow().strftime('%Y-%m-%d')
     uid = uuid.uuid4().hex[:12]
-    return f"outputs/{date}/{uid}.{ext}"
+    return date, f"{uid}.{ext}"
+
+
+def _save_output(content: bytes, date_dir: str, filename: str) -> str | None:
+    """Save content to the shared filesystem.
+
+    Args:
+        content: Raw bytes to save
+        date_dir: Date-based subdirectory
+        filename: Output filename
+
+    Returns:
+        Relative path from .outputs/ (e.g., "2026-05-11/abc123.png")
+    """
+    try:
+        output_dir = _ensure_output_dir(date_dir)
+        filepath = output_dir / filename
+        filepath.write_bytes(content)
+        rel_path = f"{date_dir}/{filename}"
+        logger.info(f"Saved {len(content)} bytes to {filepath}")
+        return rel_path
+    except Exception as e:
+        logger.error(f"Failed to save output: {e}")
+        return None
 
 
 def process_outputs(outputs: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-    """Process cell execution outputs, uploading large items to S3.
+    """Process cell execution outputs, saving large items to shared filesystem.
 
-    - Base64 images → upload to S3, replace with URL
-    - Long text outputs → upload to S3, truncate with link
+    - Base64 images → save to .outputs/, replace with path
+    - Long text outputs → save to .outputs/, truncate with path
 
     The original outputs in YDoc are unchanged (visible in JupyterLab).
     This only affects what's returned in the MCP response.
@@ -164,15 +84,15 @@ def process_outputs(outputs: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
                 png_b64 = data['image/png']
                 try:
                     png_bytes = base64.b64decode(png_b64)
-                    key = _generate_key('png')
-                    url = _upload_to_s3(png_bytes, key, 'image/png')
+                    date_dir, filename = _generate_filename('png')
+                    rel_path = _save_output(png_bytes, date_dir, filename)
 
-                    if url:
-                        # Replace base64 with URL
+                    if rel_path:
+                        # Replace base64 with filesystem path
                         new_data = {k: v for k, v in data.items() if k != 'image/png'}
-                        new_data['image/png'] = f"[Image uploaded to S3: {url}]"
+                        new_data['image/png'] = f"[Image saved: .outputs/{rel_path}]"
                         output = {**output, 'data': new_data}
-                    # If upload fails, keep original (will be large but functional)
+                    # If save fails, keep original (will be large but functional)
                 except Exception as e:
                     logger.warning(f"Failed to process image output: {e}")
 
@@ -180,14 +100,14 @@ def process_outputs(outputs: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         if output_type == 'stream':
             text = output.get('text', '')
             if len(text) > TEXT_UPLOAD_THRESHOLD:
-                key = _generate_key('txt')
-                url = _upload_to_s3(text.encode('utf-8'), key, 'text/plain')
+                date_dir, filename = _generate_filename('txt')
+                rel_path = _save_output(text.encode('utf-8'), date_dir, filename)
 
-                if url:
+                if rel_path:
                     truncated = text[:TEXT_UPLOAD_THRESHOLD]
                     output = {
                         **output,
-                        'text': f"{truncated}\n\n[Output truncated at {TEXT_UPLOAD_THRESHOLD} chars. Full output ({len(text)} chars): {url}]"
+                        'text': f"{truncated}\n\n[Output truncated at {TEXT_UPLOAD_THRESHOLD} chars. Full output ({len(text)} chars): .outputs/{rel_path}]"
                     }
 
         processed.append(output)
