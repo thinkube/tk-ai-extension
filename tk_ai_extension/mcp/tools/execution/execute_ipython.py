@@ -34,8 +34,8 @@ class ExecuteIPythonTool(BaseTool):
                 },
                 "timeout_seconds": {
                     "type": "integer",
-                    "description": "Maximum time to wait for execution (default: 300)",
-                    "default": 300
+                    "description": "Maximum time to wait for execution in seconds. 0 means no timeout (default: 0)",
+                    "default": 0
                 }
             },
             "required": ["kernel_id", "code"]
@@ -69,7 +69,7 @@ class ExecuteIPythonTool(BaseTool):
         """
         kernel_id = kwargs.get("kernel_id")
         code = kwargs.get("code")
-        timeout_seconds = kwargs.get("timeout_seconds", 300)
+        timeout_seconds = kwargs.get("timeout_seconds", 0)
 
         if not kernel_id or not code:
             return {

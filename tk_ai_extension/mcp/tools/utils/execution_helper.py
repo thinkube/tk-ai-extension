@@ -107,7 +107,7 @@ async def execute_via_execution_stack(
     code: str,
     document_id: Optional[str] = None,
     cell_id: Optional[str] = None,
-    timeout: int = 300,
+    timeout: int = 0,
     poll_interval: float = 0.1
 ) -> List[str]:
     """Execute code using jupyter-server-nbmodel REST API (non-blocking, preferred method).
@@ -122,7 +122,7 @@ async def execute_via_execution_stack(
         code: Code to execute
         document_id: Optional document ID for RTC integration (format: json:notebook:<file_id>)
         cell_id: Optional cell ID for RTC integration
-        timeout: Maximum time to wait for execution (seconds)
+        timeout: Maximum time to wait for execution in seconds. 0 means no timeout.
         poll_interval: Time between polling for results (seconds)
 
     Returns:
@@ -196,7 +196,7 @@ async def execute_via_execution_stack(
 
         while True:
             elapsed = asyncio.get_event_loop().time() - start_time
-            if elapsed > timeout:
+            if timeout > 0 and elapsed > timeout:
                 raise TimeoutError(f"Execution timed out after {timeout} seconds")
 
             # Poll result endpoint
@@ -254,7 +254,7 @@ async def execute_code_with_timeout(
     kernel_manager: Any,
     kernel_id: str,
     code: str,
-    timeout_seconds: int = 300,
+    timeout_seconds: int = 0,
     serverapp: Optional[Any] = None,
     document_id: Optional[str] = None,
     cell_id: Optional[str] = None
@@ -268,7 +268,7 @@ async def execute_code_with_timeout(
         kernel_manager: Jupyter kernel manager
         kernel_id: ID of the kernel to execute in
         code: Code to execute
-        timeout_seconds: Maximum time to wait
+        timeout_seconds: Maximum time to wait (0 = no timeout)
         serverapp: Optional Jupyter ServerApp instance (for ExecutionStack)
         document_id: Optional document ID for RTC integration (format: json:notebook:<file_id>)
         cell_id: Optional cell ID for RTC integration
@@ -277,113 +277,18 @@ async def execute_code_with_timeout(
         List of output strings
     """
     # Use ExecutionStack with RTC metadata when available
-    if serverapp is not None:
-        logger.info(f"execute_code_with_timeout: Using ExecutionStack with document_id={document_id}, cell_id={cell_id}")
-        return await execute_via_execution_stack(
-            serverapp=serverapp,
-            kernel_id=kernel_id,
-            code=code,
-            document_id=document_id,
-            cell_id=cell_id,
-            timeout=timeout_seconds
-        )
+    if serverapp is None:
+        raise RuntimeError("serverapp is required for code execution")
 
-    logger.warning(f"execute_code_with_timeout: serverapp is None, falling back to legacy method")
-
-    # Legacy blocking method (DEPRECATED - causes 300s timeout issues)
-    # This should only be used if serverapp is None
-    if not code or not code.strip():
-        return ["[Empty code]"]
-
-    try:
-        # Get kernel
-        kernel = kernel_manager.get_kernel(kernel_id)
-
-        # Create a new kernel client for this execution
-        client = kernel.client()
-        client.start_channels()
-
-        # Wait for client to be ready
-        await asyncio.sleep(0.5)
-
-        # Execute code - this is synchronous but returns immediately
-        msg_id = client.execute(code, silent=False, store_history=True)
-
-        # Collect outputs with timeout
-        outputs = []
-        start_time = asyncio.get_event_loop().time()
-        execution_done = False
-        empty_reads = 0  # Track consecutive empty reads
-        max_empty_reads = 20  # Exit after 2 seconds of no messages (20 * 0.1s)
-
-        while not execution_done:
-            # Check timeout
-            elapsed = asyncio.get_event_loop().time() - start_time
-            if elapsed > timeout_seconds:
-                # Interrupt kernel
-                logger.warning(f"Execution timeout after {elapsed}s")
-                try:
-                    await kernel_manager.interrupt_kernel(kernel_id)
-                except Exception as e:
-                    logger.warning(f"Failed to interrupt kernel: {e}")
-                client.stop_channels()
-                return [f"[TIMEOUT ERROR: Execution exceeded {timeout_seconds} seconds]"]
-
-            # Check if we've been getting no messages for too long
-            if empty_reads >= max_empty_reads:
-                logger.info(f"No messages for {max_empty_reads * 0.1}s, assuming execution complete")
-                execution_done = True
-                break
-
-            # Get messages (non-blocking)
-            try:
-                # Run blocking call in thread pool with short timeout
-                msg = await asyncio.get_event_loop().run_in_executor(
-                    None,
-                    lambda: client.get_iopub_msg(timeout=0.5)
-                )
-
-                # Reset empty reads counter - we got a message
-                empty_reads = 0
-
-                if msg['parent_header'].get('msg_id') == msg_id:
-                    msg_type = msg['header']['msg_type']
-                    content = msg['content']
-
-                    logger.debug(f"Got message type: {msg_type}")
-
-                    if msg_type == 'stream':
-                        outputs.append(content.get('text', ''))
-                    elif msg_type == 'execute_result':
-                        data = content.get('data', {})
-                        outputs.append(data.get('text/plain', str(data)))
-                    elif msg_type == 'display_data':
-                        data = content.get('data', {})
-                        outputs.append(data.get('text/plain', str(data)))
-                    elif msg_type == 'error':
-                        ename = content.get('ename', 'Unknown')
-                        evalue = content.get('evalue', '')
-                        traceback = '\n'.join(content.get('traceback', []))
-                        outputs.append(f"[ERROR: {ename}: {evalue}\n{traceback}]")
-                    elif msg_type == 'status':
-                        if content.get('execution_state') == 'idle':
-                            logger.info("Kernel returned to idle state")
-                            execution_done = True
-
-            except Exception:
-                # No message available, increment empty reads counter
-                empty_reads += 1
-                await asyncio.sleep(0.1)
-
-        # Stop client channels
-        client.stop_channels()
-
-        logger.info(f"Execution completed with {len(outputs)} outputs")
-        return outputs if outputs else ["[No output]"]
-
-    except Exception as e:
-        logger.error(f"Execution error: {e}", exc_info=True)
-        return [f"[ERROR: {str(e)}]"]
+    logger.info(f"execute_code_with_timeout: Using ExecutionStack with document_id={document_id}, cell_id={cell_id}")
+    return await execute_via_execution_stack(
+        serverapp=serverapp,
+        kernel_id=kernel_id,
+        code=code,
+        document_id=document_id,
+        cell_id=cell_id,
+        timeout=timeout_seconds
+    )
 
 
 def format_outputs(outputs: List[Any]) -> List[str]:

@@ -42,8 +42,8 @@ class ExecuteCellTool(BaseTool):
                 },
                 "timeout_seconds": {
                     "type": "integer",
-                    "description": "Maximum time to wait for execution (default: 300)",
-                    "default": 300
+                    "description": "Maximum time to wait for execution in seconds. 0 means no timeout (default: 0)",
+                    "default": 0
                 }
             },
             "required": ["notebook_path", "cell_index", "kernel_id"]
@@ -79,7 +79,7 @@ class ExecuteCellTool(BaseTool):
         notebook_path = kwargs.get("notebook_path")
         cell_index = kwargs.get("cell_index")
         kernel_id = kwargs.get("kernel_id")
-        timeout_seconds = kwargs.get("timeout_seconds", 300)
+        timeout_seconds = kwargs.get("timeout_seconds", 0)
 
         if not serverapp:
             serverapp = getattr(contents_manager, 'parent', None)
@@ -209,7 +209,7 @@ class ExecuteCellTool(BaseTool):
         serverapp: Any,
         kernel_id: str,
         code: str,
-        timeout: int = 300
+        timeout: int = 0
     ) -> tuple[int, List[Dict[str, Any]]]:
         """Execute code in kernel and collect outputs.
 
@@ -266,28 +266,32 @@ class ExecuteCellTool(BaseTool):
             poller.register(iopub_socket, zmq.POLLIN)
             poller.register(shell_socket, zmq.POLLIN)
 
-            timeout_ms = timeout * 1000
+            timeout_ms = timeout * 1000 if timeout > 0 else 0  # 0 = no timeout
             start_time = asyncio.get_event_loop().time()
 
             while not execution_done or (execution_done_time and (asyncio.get_event_loop().time() - execution_done_time) * 1000 < grace_period_ms):
                 elapsed_ms = (asyncio.get_event_loop().time() - start_time) * 1000
-                remaining_ms = max(0, timeout_ms - elapsed_ms)
 
                 # If execution is done and grace period expired, exit
                 if execution_done and execution_done_time and (asyncio.get_event_loop().time() - execution_done_time) * 1000 >= grace_period_ms:
                     break
 
-                if remaining_ms <= 0:
-                    client.stop_channels()
-                    serverapp.log.warning(f"Code execution timeout after {timeout}s, collected {len(outputs)} outputs")
-                    return (None, [{
-                        "output_type": "stream",
-                        "name": "stderr",
-                        "text": f"[TIMEOUT: Code execution exceeded {timeout} seconds]"
-                    }])
+                # Check timeout (only if timeout > 0)
+                if timeout_ms > 0:
+                    remaining_ms = max(0, timeout_ms - elapsed_ms)
+                    if remaining_ms <= 0:
+                        client.stop_channels()
+                        serverapp.log.warning(f"Code execution timeout after {timeout}s, collected {len(outputs)} outputs")
+                        return (None, [{
+                            "output_type": "stream",
+                            "name": "stderr",
+                            "text": f"[TIMEOUT: Code execution exceeded {timeout} seconds]"
+                        }])
+                else:
+                    remaining_ms = 60000  # Poll in 60s chunks when no timeout
 
                 # Use shorter poll timeout during grace period
-                poll_timeout = min(remaining_ms, grace_period_ms / 2) if execution_done else remaining_ms
+                poll_timeout = min(remaining_ms, grace_period_ms / 2) if execution_done else min(remaining_ms, 60000)
                 events = dict(await poller.poll(poll_timeout))
 
                 if not events:

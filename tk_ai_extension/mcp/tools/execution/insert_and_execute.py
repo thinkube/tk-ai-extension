@@ -6,13 +6,19 @@
 import logging
 from typing import Any, Optional, Dict
 from ..base import BaseTool
-from ..utils import get_jupyter_ydoc, get_notebook_path, execute_code_with_timeout
+from ..utils import get_jupyter_ydoc, get_notebook_path
+from .execute_cell import ExecuteCellTool
 
 logger = logging.getLogger(__name__)
 
 
 class InsertAndExecuteCellTool(BaseTool):
     """Insert a new code cell and execute it immediately."""
+
+    def __init__(self):
+        super().__init__()
+        # Reuse ExecuteCellTool's _execute_code for consistent behavior
+        self._executor = ExecuteCellTool()
 
     @property
     def name(self) -> str:
@@ -50,8 +56,8 @@ class InsertAndExecuteCellTool(BaseTool):
                 },
                 "timeout_seconds": {
                     "type": "integer",
-                    "description": "Maximum time to wait for execution (default: 300)",
-                    "default": 300
+                    "description": "Maximum time to wait for execution in seconds. 0 means no timeout (default: 0)",
+                    "default": 0
                 }
             },
             "required": ["notebook_path", "cell_index", "code", "kernel_id"]
@@ -89,7 +95,10 @@ class InsertAndExecuteCellTool(BaseTool):
         cell_index = kwargs.get("cell_index")
         code = kwargs.get("code") or kwargs.get("source")
         kernel_id = kwargs.get("kernel_id")
-        timeout_seconds = kwargs.get("timeout_seconds", 300)
+        timeout_seconds = kwargs.get("timeout_seconds", 0)
+
+        if not serverapp:
+            return {"error": "ServerApp not available", "success": False}
 
         # Auto-resolve kernel_id from sessions if not provided
         if not kernel_id and notebook_path and session_manager:
@@ -106,11 +115,6 @@ class InsertAndExecuteCellTool(BaseTool):
             }
 
         try:
-            if not serverapp:
-                return {"error": "ServerApp not available", "success": False}
-
-            abs_path = get_notebook_path(serverapp, notebook_path)
-
             # Check kernel state
             kernels = list(kernel_manager.list_kernels())
             kernel_info = None
@@ -142,30 +146,34 @@ class InsertAndExecuteCellTool(BaseTool):
             if cell_index > len(ydoc.ycells):
                 cell_index = len(ydoc.ycells)
 
-            # Create new cell dict with source content
-            # create_ycell() will convert source to Text object automatically
+            # Create new cell and insert into YDoc
             new_cell = {
                 "cell_type": "code",
                 "source": code,
-                "execution_count": None,  # Required for code cells
+                "execution_count": None,
             }
-
-            # Create proper CRDT cell object
             ycell = ydoc.create_ycell(new_cell)
             ydoc.ycells.insert(cell_index, ycell)
 
-            # Get the newly inserted cell to retrieve its ID
-            inserted_cell_id = ycell.get("id")
-
-            # Execute the cell
-            outputs = await execute_code_with_timeout(
-                kernel_manager,
-                kernel_id,
-                code,
-                timeout_seconds,
-                serverapp=serverapp
+            # Execute using the same zmq-based method as ExecuteCellTool
+            execution_count, outputs = await self._executor._execute_code(
+                serverapp=serverapp,
+                kernel_id=kernel_id,
+                code=code,
+                timeout=timeout_seconds
             )
 
+            serverapp.log.info(f"Insert+execute completed: cell {cell_index}, {len(outputs)} outputs")
+
+            # Update execution count and outputs in YDoc (required for RTC broadcast)
+            cell = ydoc.ycells[cell_index]
+            with cell.doc.transaction():
+                cell["execution_count"] = execution_count
+                del cell["outputs"][:]
+                for output in outputs:
+                    cell["outputs"].append(output)
+
+            # Process outputs for MCP response
             from ..utils.s3_helper import process_outputs
             return {
                 "success": True,
